@@ -1,21 +1,44 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   DragDropContext,
   type DropResult,
 } from "@hello-pangea/dnd";
+import Link from "next/link";
 import { Column } from "./Column";
 import { CardDetail } from "./CardDetail";
 import { ProjectChatWidget } from "@/components/chat/ProjectChatWidget";
 import { UsageCounter } from "./UsageCounter";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { useBoard } from "@/hooks/useBoard";
 import type { Card, Column as ColumnType } from "@/types";
+import { Loader2, ArrowLeft } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "production", "review", "complete"];
 
-export function Board() {
-  const board = useBoard();
+interface BoardProps {
+  projectId: string;
+}
+
+function BoardInner({ projectId }: BoardProps) {
+  const board = useBoard(projectId);
+  const searchParams = useSearchParams();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const deepLinked = useRef(false);
+
+  // Deep-link: auto-open card from ?card= query param
+  useEffect(() => {
+    if (deepLinked.current || board.loading || board.cards.length === 0) return;
+    const cardId = searchParams.get("card");
+    if (cardId) {
+      const card = board.cards.find((c) => c.id === cardId);
+      if (card) {
+        setSelectedCard(card);
+      }
+      deepLinked.current = true;
+    }
+  }, [searchParams, board.cards, board.loading]);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -27,72 +50,93 @@ export function Board() {
     );
   };
 
-  if (!board.activeProject) {
-    return <ProjectSetup onCreate={board.createProject} />;
+  if (board.loading) {
+    return (
+      <div className="flex h-screen flex-col">
+        <AppHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/" },
+            { label: "Loading..." },
+          ]}
+        />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-white/30" />
+        </div>
+      </div>
+    );
+  }
+
+  if (board.error || !board.project) {
+    return (
+      <div className="flex h-screen flex-col">
+        <AppHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/" },
+            { label: "Not Found" },
+          ]}
+        />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="glass w-full max-w-md space-y-4 rounded-2xl p-8 text-center">
+            <h2 className="text-xl font-bold text-white">Project Not Found</h2>
+            <p className="text-sm text-white/50">
+              {board.error || "This project doesn't exist or has been deleted."}
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white/80 hover:bg-white/15 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden relative">
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-8 py-4">
-        <div className="flex items-center gap-6">
-          <h1 className="text-lg font-bold tracking-tight text-white/90">Trellai</h1>
-          <nav className="flex items-center gap-4">
-            <span className="text-sm font-medium text-white/50">Home</span>
-            <span className="border-b-2 border-white/80 pb-0.5 text-sm font-medium text-white/90">
-              Boards
-            </span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-lg bg-white/5 p-0.5">
-            <button
-              onClick={() => board.toggleMode("worktree")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                board.activeProject?.mode !== "queue"
-                  ? "bg-white/10 text-white/90"
-                  : "text-white/40 hover:text-white/60"
-              }`}
-            >
-              Worktree
-            </button>
-            <button
-              onClick={() => board.toggleMode("queue")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                board.activeProject?.mode === "queue"
-                  ? "bg-white/10 text-white/90"
-                  : "text-white/40 hover:text-white/60"
-              }`}
-            >
-              Queue
-            </button>
+      <AppHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/" },
+          { label: board.project.name },
+        ]}
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg bg-white/5 p-0.5">
+              <button
+                onClick={() => board.toggleMode("worktree")}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  board.project?.mode !== "queue"
+                    ? "bg-white/10 text-white/90"
+                    : "text-white/40 hover:text-white/60"
+                }`}
+              >
+                Worktree
+              </button>
+              <button
+                onClick={() => board.toggleMode("queue")}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  board.project?.mode === "queue"
+                    ? "bg-white/10 text-white/90"
+                    : "text-white/40 hover:text-white/60"
+                }`}
+              >
+                Queue
+              </button>
+            </div>
+            <UsageCounter />
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20" />
           </div>
-          <UsageCounter />
-          {board.projects.length > 1 && (
-            <select
-              className="rounded-lg glass px-3 py-1.5 text-sm text-white/80"
-              value={board.activeProject.id}
-              onChange={(e) => {
-                const p = board.projects.find((p) => p.id === e.target.value);
-                if (p) board.setActiveProject(p);
-              }}
-            >
-              {board.projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20" />
-        </div>
-      </header>
+        }
+      />
 
       {/* Board title area */}
       <div className="relative z-10 px-8 pb-4">
         <EditableTitle
-          value={board.activeProject.name}
-          onSave={(name) => board.renameProject(board.activeProject!.id, name)}
+          value={board.project.name}
+          onSave={(name) => board.renameProject(board.project!.id, name)}
         />
         <p className="mt-0.5 text-sm text-white/40">
           {board.cards.length} card{board.cards.length !== 1 ? "s" : ""} across{" "}
@@ -134,14 +178,28 @@ export function Board() {
         />
       )}
 
-      {board.activeProject && (
+      {board.project && (
         <ProjectChatWidget
-          projectId={board.activeProject.id}
-          projectName={board.activeProject.name}
+          projectId={board.project.id}
+          projectName={board.project.name}
           onCardCreated={board.refreshCards}
         />
       )}
     </div>
+  );
+}
+
+export function Board({ projectId }: BoardProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-white/30" />
+        </div>
+      }
+    >
+      <BoardInner projectId={projectId} />
+    </Suspense>
   );
 }
 
@@ -198,82 +256,5 @@ function EditableTitle({
     >
       {value}
     </h2>
-  );
-}
-
-function ProjectSetup({
-  onCreate,
-}: {
-  onCreate: (name: string, repoPath: string) => Promise<unknown>;
-}) {
-  const [name, setName] = useState("");
-  const [repoPath, setRepoPath] = useState("");
-  const [browsing, setBrowsing] = useState(false);
-
-  const handleBrowse = async () => {
-    setBrowsing(true);
-    try {
-      const res = await fetch("/api/folder-picker", { method: "POST" });
-      const data = await res.json();
-      if (data.path) {
-        setRepoPath(data.path);
-      }
-    } finally {
-      setBrowsing(false);
-    }
-  };
-
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="glass w-full max-w-md space-y-6 rounded-2xl p-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Trellai</h1>
-          <p className="mt-1 text-sm text-white/50">
-            Set up your first project to get started.
-          </p>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-white/70">
-              Project Name
-            </label>
-            <input
-              className="mt-1.5 w-full rounded-xl bg-white/8 px-4 py-2.5 text-sm text-white placeholder:text-white/30 border border-white/10 focus:border-white/25 focus:outline-none transition-colors"
-              placeholder="My Project"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-white/70">
-              Repository Path
-            </label>
-            <div className="mt-1.5 flex gap-2">
-              <input
-                className="flex-1 rounded-xl bg-white/8 px-4 py-2.5 text-sm font-mono text-white placeholder:text-white/30 border border-white/10 focus:border-white/25 focus:outline-none transition-colors"
-                placeholder="/Users/you/code/my-project"
-                value={repoPath}
-                onChange={(e) => setRepoPath(e.target.value)}
-              />
-              <button
-                type="button"
-                className="rounded-xl bg-white/8 px-3 py-2.5 text-sm text-white/70 border border-white/10 hover:bg-white/12 hover:text-white transition-colors disabled:opacity-40"
-                onClick={handleBrowse}
-                disabled={browsing}
-              >
-                {browsing ? "..." : "Browse"}
-              </button>
-            </div>
-          </div>
-          <button
-            className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-shadow disabled:opacity-40 disabled:shadow-none"
-            disabled={!name || !repoPath}
-            onClick={() => onCreate(name, repoPath)}
-          >
-            Create Project
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

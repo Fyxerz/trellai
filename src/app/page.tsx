@@ -1,11 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
 
-const Board = dynamic(
-  () => import("@/components/board/Board").then((m) => m.Board),
+const Dashboard = dynamic(
+  () =>
+    import("@/components/dashboard/Dashboard").then((m) => m.Dashboard),
   { ssr: false }
 );
 
 export default function Home() {
-  return <Board />;
+  return <Dashboard />;
 }

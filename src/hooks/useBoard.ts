@@ -3,44 +3,51 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import type { Card, CardType, Project, Column, AgentStatus } from "@/types";
 
-export function useBoard() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
+export function useBoard(projectId: string) {
+  const [project, setProject] = useState<Project | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchProjects = useCallback(async () => {
-    const res = await fetch("/api/projects");
-    const data = await res.json();
-    setProjects(data);
-    if (data.length > 0 && !activeProject) {
-      setActiveProject(data[0]);
+  const fetchProject = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) {
+        setError("Project not found");
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setProject(data);
+    } catch {
+      setError("Failed to load project");
+      setLoading(false);
     }
-  }, [activeProject]);
+  }, [projectId]);
 
   const fetchCards = useCallback(async () => {
-    if (!activeProject) return;
-    const res = await fetch(`/api/cards?projectId=${activeProject.id}`);
+    if (!projectId) return;
+    const res = await fetch(`/api/cards?projectId=${projectId}`);
     const data = await res.json();
     setCards(data);
     setLoading(false);
-  }, [activeProject]);
+  }, [projectId]);
 
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    fetchProject();
+  }, [fetchProject]);
 
   useEffect(() => {
-    if (activeProject) {
+    if (project) {
       fetchCards();
     }
-  }, [activeProject, fetchCards]);
+  }, [project, fetchCards]);
 
   // Real-time status updates via socket
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!activeProject) return;
+    if (!project) return;
 
     const socket = io("http://localhost:3001");
     socketRef.current = socket;
@@ -78,7 +85,7 @@ export function useBoard() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [activeProject, cards.length]); // reconnect when cards are added/removed
+  }, [project, cards.length]); // reconnect when cards are added/removed
 
   // Join new card rooms when cards change
   useEffect(() => {
@@ -89,18 +96,6 @@ export function useBoard() {
     }
   }, [cards.length]);
 
-  const createProject = async (name: string, repoPath: string) => {
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, repoPath }),
-    });
-    const project = await res.json();
-    setProjects((prev) => [...prev, project]);
-    setActiveProject(project);
-    return project;
-  };
-
   const renameProject = async (id: string, name: string) => {
     const res = await fetch("/api/projects", {
       method: "PATCH",
@@ -108,18 +103,17 @@ export function useBoard() {
       body: JSON.stringify({ id, name }),
     });
     const updated = await res.json();
-    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
-    if (activeProject?.id === id) setActiveProject(updated);
+    setProject(updated);
     return updated;
   };
 
   const createCard = async (title: string, description = "", type: CardType = "feature") => {
-    if (!activeProject) return;
+    if (!project) return;
     const res = await fetch("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        projectId: activeProject.id,
+        projectId: project.id,
         title,
         description,
         type,
@@ -169,11 +163,11 @@ export function useBoard() {
   };
 
   const toggleMode = async (mode: "worktree" | "queue") => {
-    if (!activeProject) return;
+    if (!project) return;
     const res = await fetch("/api/projects", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: activeProject.id, mode }),
+      body: JSON.stringify({ id: project.id, mode }),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -181,8 +175,7 @@ export function useBoard() {
       return;
     }
     const updated = await res.json();
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    setActiveProject(updated);
+    setProject(updated);
   };
 
   const refreshCards = () => fetchCards();
@@ -201,12 +194,10 @@ export function useBoard() {
   };
 
   return {
-    projects,
-    activeProject,
-    setActiveProject,
+    project,
     cards,
     loading,
-    createProject,
+    error,
     renameProject,
     createCard,
     updateCard,
