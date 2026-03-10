@@ -204,7 +204,7 @@ export function CardDetail({
           </div>
 
           {/* Right column: tabs + chat/diff */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {/* Tabs for review */}
             {card.column === "review" && (
               <div className="shrink-0 flex gap-1 px-6 pt-3 pb-1">

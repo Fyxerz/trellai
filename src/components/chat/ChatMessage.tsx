@@ -11,9 +11,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isSuccess = isSystem && message.content.includes("successfully");
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
+        className={`max-w-[85%] min-w-0 overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
             ? "bg-gradient-to-r from-violet-500/80 to-indigo-500/80 text-white"
             : isSuccess
@@ -30,7 +30,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </span>
           </div>
         )}
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
       </div>
     </div>
   );
