@@ -15,7 +15,7 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMove }: ChatPanelProps) {
-  const { messages, agentRunning, streaming, sendMessage, confirmMoveToDev } = useChat(cardId, onAutoMove);
+  const { messages, agentRunning, streaming, sendMessage, confirmMoveToDev, stopAgent } = useChat(cardId, onAutoMove);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,6 +107,8 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
           placeholder={placeholders[column]}
           onSend={(content) => sendMessage(content, column)}
           disabled={!canSend}
+          agentRunning={agentRunning}
+          onStop={stopAgent}
         />
       </div>
     </div>

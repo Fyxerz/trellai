@@ -243,5 +243,14 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     }
   };
 
-  return { messages, agentRunning, streaming, sendMessage, confirmMoveToDev, refreshMessages: fetchMessages };
+  const stopAgent = useCallback(async () => {
+    if (!cardId) return;
+    await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stop", cardId }),
+    });
+  }, [cardId]);
+
+  return { messages, agentRunning, streaming, sendMessage, confirmMoveToDev, stopAgent, refreshMessages: fetchMessages };
 }

@@ -1,14 +1,16 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send } from "lucide-react";
+import { Send, Square } from "lucide-react";
 
 interface ChatInputProps {
   placeholder: string;
   onSend: (content: string) => void;
   disabled?: boolean;
+  agentRunning?: boolean;
+  onStop?: () => void;
 }
 
-export function ChatInput({ placeholder, onSend, disabled }: ChatInputProps) {
+export function ChatInput({ placeholder, onSend, disabled, agentRunning, onStop }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -51,13 +53,23 @@ export function ChatInput({ placeholder, onSend, disabled }: ChatInputProps) {
         disabled={disabled}
         rows={1}
       />
-      <button
-        onClick={handleSend}
-        disabled={!value.trim() || disabled}
-        className="rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-3 py-2 text-white shadow-lg shadow-violet-500/15 hover:shadow-violet-500/30 transition-all disabled:opacity-30 disabled:shadow-none"
-      >
-        <Send className="h-4 w-4" />
-      </button>
+      {agentRunning && onStop ? (
+        <button
+          onClick={onStop}
+          className="rounded-xl bg-red-500/15 px-3 py-2 text-red-400 hover:bg-red-500/25 transition-all"
+          title="Stop agent"
+        >
+          <Square className="h-4 w-4 fill-current" />
+        </button>
+      ) : (
+        <button
+          onClick={handleSend}
+          disabled={!value.trim() || disabled}
+          className="rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-3 py-2 text-white shadow-lg shadow-violet-500/15 hover:shadow-violet-500/30 transition-all disabled:opacity-30 disabled:shadow-none"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }
