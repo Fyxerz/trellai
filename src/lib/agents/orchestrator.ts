@@ -266,8 +266,8 @@ class Orchestrator {
         // Socket may not be available
       }
 
-      // Only persist final results, system, and tool_use events to DB (not streaming deltas)
-      if (data.type === "result" || data.type === "system" || data.type === "tool_use") {
+      // Only persist final results and system events to DB (not streaming deltas or tool_use)
+      if (data.type === "result" || data.type === "system") {
         db.insert(chatMessages)
           .values({
             id: uuid(),
@@ -1170,8 +1170,8 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
         // Socket may not be available
       }
 
-      // Persist final results and tool_use
-      if (data.type === "result" || data.type === "system" || data.type === "tool_use") {
+      // Persist final results and system events (not tool_use)
+      if (data.type === "result" || data.type === "system") {
         db.insert(chatMessages)
           .values({
             id: uuid(),

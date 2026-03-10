@@ -3,6 +3,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import type { ChatMessage } from "@/types";
 
+function buildToolMarker(toolCounts: Map<string, number>): string {
+  const parts = Array.from(toolCounts.entries()).map(
+    ([name, count]) => `${name}×${count}`
+  );
+  return `\n{{tools:${parts.join(",")}}}`;
+}
+
 export function useProjectChat(
   projectId: string | null,
   onCardCreated?: () => void
@@ -11,6 +18,7 @@ export function useProjectChat(
   const [agentRunning, setAgentRunning] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const toolCountsRef = useRef<Map<string, number>>(new Map());
 
   const fetchMessages = useCallback(async () => {
     if (!projectId) return;
@@ -63,6 +71,7 @@ export function useProjectChat(
 
       if (data.type === "result") {
         setStreaming(false);
+        toolCountsRef.current = new Map();
         setMessages((prev) => {
           const streamingId = `streaming-project-${projectId}`;
           const filtered = prev.filter((m) => m.id !== streamingId);
@@ -83,7 +92,42 @@ export function useProjectChat(
         return;
       }
 
-      if (data.type === "text" || data.type === "tool_use") {
+      if (data.type === "tool_use") {
+        setStreaming(true);
+        const streamingId = `streaming-project-${projectId}`;
+        const toolName = data.content.replace("Using tool: ", "").trim();
+        toolCountsRef.current.set(
+          toolName,
+          (toolCountsRef.current.get(toolName) || 0) + 1
+        );
+        const marker = buildToolMarker(toolCountsRef.current);
+        setMessages((prev) => {
+          const existing = prev.find((m) => m.id === streamingId);
+          if (existing) {
+            const content = existing.content.replace(/\n?{{tools:[^}]+}}/g, "") + marker;
+            return prev.map((m) =>
+              m.id === streamingId ? { ...m, content } : m
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: streamingId,
+              cardId: null,
+              projectId,
+              role: "assistant" as const,
+              content: marker,
+              column: "project",
+              createdAt: data.timestamp,
+            },
+          ];
+        });
+      }
+
+      if (data.type === "text") {
+        if (toolCountsRef.current.size > 0) {
+          toolCountsRef.current = new Map();
+        }
         setStreaming(true);
         const streamingId = `streaming-project-${projectId}`;
         setMessages((prev) => {
