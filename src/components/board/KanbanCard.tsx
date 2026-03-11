@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
 import { Calendar, GitBranch, CheckSquare } from "lucide-react";
 import type { Card } from "@/types";
@@ -34,6 +35,7 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
+  const [fileDragOver, setFileDragOver] = useState(false);
   const badge = typeBadge[card.type] || typeBadge.feature;
   const status = statusBadge[card.agentStatus] || statusBadge.idle;
   const isRunning = card.agentStatus === "running";
@@ -54,8 +56,35 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={onClick}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes("Files")) {
+              e.preventDefault();
+              e.stopPropagation();
+              setFileDragOver(true);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+              setFileDragOver(false);
+            }
+          }}
+          onDrop={async (e) => {
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            if (droppedFiles.length === 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setFileDragOver(false);
+            const formData = new FormData();
+            droppedFiles.forEach((f) => formData.append("files", f));
+            await fetch(`/api/cards/${card.id}/files`, {
+              method: "POST",
+              body: formData,
+            });
+          }}
           className={`glass-card rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-            snapshot.isDragging
+            fileDragOver
+              ? "ring-2 ring-violet-400/50 bg-violet-500/10"
+              : snapshot.isDragging
               ? "shadow-2xl shadow-black/30 ring-1 ring-white/20 scale-[1.02]"
               : needsAttention
               ? "attention-glow"

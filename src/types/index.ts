@@ -51,6 +51,17 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export interface FileAttachment {
+  id: string;
+  projectId: string;
+  cardId: string | null;
+  filename: string;
+  storedPath: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
 export interface AgentOutput {
   type: "text" | "tool_use" | "tool_result" | "status" | "error" | "result";
   content: string;

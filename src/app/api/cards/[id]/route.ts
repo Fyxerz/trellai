@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { cards, chatMessages, checklistItems } from "@/lib/db/schema";
+import { cards, chatMessages, checklistItems, files } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 
 export async function GET(
   _req: NextRequest,
@@ -48,6 +50,27 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Clean up uploaded files on disk
+  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  if (card) {
+    const cardFilesDir = path.join(
+      process.cwd(),
+      "data",
+      "uploads",
+      card.projectId,
+      "cards",
+      id
+    );
+    try {
+      fs.rmSync(cardFilesDir, { recursive: true, force: true });
+    } catch {
+      // Directory may not exist
+    }
+  }
+
+  // DB cascade handles files table rows, but delete explicitly for safety
+  db.delete(files).where(eq(files.cardId, id)).run();
   db.delete(chatMessages).where(eq(chatMessages.cardId, id)).run();
   db.delete(checklistItems).where(eq(checklistItems.cardId, id)).run();
   db.delete(cards).where(eq(cards.id, id)).run();

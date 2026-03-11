@@ -10,6 +10,9 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { DiffViewer } from "@/components/review/DiffViewer";
 import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2 } from "lucide-react";
 import { Checklist } from "./Checklist";
+import { FileUploadButton } from "@/components/files/FileUploadButton";
+import { FileList } from "@/components/files/FileList";
+import { useFiles } from "@/hooks/useFiles";
 import type { Card, CardType, ChecklistItem } from "@/types";
 
 const statusBadge: Record<string, { label: string; class: string }> = {
@@ -62,6 +65,15 @@ export function CardDetail({
     card.column === "review" ? "diff" : "chat"
   );
   const [copied, setCopied] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const {
+    cardFiles,
+    projectFiles,
+    uploading,
+    uploadCardFiles,
+    deleteFile,
+  } = useFiles({ projectId: card.projectId, cardId: card.id });
 
   useEffect(() => {
     setTitle(card.title);
@@ -130,7 +142,28 @@ export function CardDetail({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="glass border-white/10 sm:max-w-6xl h-[80vh] !flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent
+        className={`glass border-white/10 sm:max-w-6xl h-[80vh] !flex flex-col gap-0 p-0 overflow-hidden transition-colors ${dragOver ? "ring-2 ring-violet-400/50" : ""}`}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("Files")) {
+            e.preventDefault();
+            setDragOver(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOver(false);
+          }
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const droppedFiles = Array.from(e.dataTransfer.files);
+          if (droppedFiles.length > 0) {
+            await uploadCardFiles(droppedFiles);
+          }
+        }}
+      >
         {/* Header */}
         <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-white/8">
           <div className="flex items-start gap-3">
@@ -201,6 +234,21 @@ export function CardDetail({
               </div>
             )}
             <Checklist cardId={card.id} onChangeCount={onRefresh} />
+
+            {/* Files section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-white/40 uppercase tracking-wider">
+                  Files
+                </label>
+                <FileUploadButton onUpload={uploadCardFiles} uploading={uploading} />
+              </div>
+              <FileList
+                cardFiles={cardFiles}
+                projectFiles={projectFiles}
+                onDeleteCardFile={(fileId) => deleteFile(fileId, "card")}
+              />
+            </div>
           </div>
 
           {/* Right column: tabs + chat/diff */}

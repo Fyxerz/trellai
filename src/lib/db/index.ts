@@ -117,3 +117,17 @@ try {
 } catch {
   // Column already exists
 }
+
+// Migrate: create files table for user uploads
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    card_id TEXT REFERENCES cards(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    stored_path TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+`);

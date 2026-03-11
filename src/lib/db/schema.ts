@@ -39,6 +39,19 @@ export const checklistItems = sqliteTable("checklist_items", {
   createdAt: text("created_at").notNull(),
 });
 
+export const files = sqliteTable("files", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id),
+  cardId: text("card_id").references(() => cards.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  storedPath: text("stored_path").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 export const chatMessages = sqliteTable("chat_messages", {
   id: text("id").primaryKey(),
   cardId: text("card_id").references(() => cards.id, { onDelete: "cascade" }),

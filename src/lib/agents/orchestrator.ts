@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { cards, projects, chatMessages, checklistItems } from "@/lib/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { cards, projects, chatMessages, checklistItems, files } from "@/lib/db/schema";
+import { eq, and, ne, isNull } from "drizzle-orm";
 import { worktreeManager } from "./worktree-manager";
 import { queueManager } from "./queue-manager";
 import { ClaudeProcess } from "./claude-process";
@@ -50,6 +50,39 @@ class Orchestrator {
     } catch {
       // Socket may not be available
     }
+  }
+
+  private getFilesContext(projectId: string, cardId?: string): string {
+    const projectFiles = db
+      .select()
+      .from(files)
+      .where(and(eq(files.projectId, projectId), isNull(files.cardId)))
+      .all();
+
+    const cardFiles = cardId
+      ? db.select().from(files).where(eq(files.cardId, cardId)).all()
+      : [];
+
+    if (projectFiles.length === 0 && cardFiles.length === 0) return "";
+
+    let context = "\n\n## Reference Files\n";
+    context += "The user has uploaded reference files you can read with your Read tool:\n";
+
+    if (projectFiles.length > 0) {
+      context += "\nProject-level files:\n";
+      projectFiles.forEach((f) => {
+        context += `- ${f.filename} (${f.mimeType}) → ${f.storedPath}\n`;
+      });
+    }
+
+    if (cardFiles.length > 0) {
+      context += "\nCard-specific files:\n";
+      cardFiles.forEach((f) => {
+        context += `- ${f.filename} (${f.mimeType}) → ${f.storedPath}\n`;
+      });
+    }
+
+    return context;
   }
 
   async sendMessage(cardId: string, message: string) {
@@ -104,9 +137,10 @@ class Orchestrator {
         if (todos.length > 0) {
           cardContext += `\n\nChecklist:\n${todos.map(t => `- [${t.checked ? "x" : " "}] ${t.text}`).join("\n")}`;
         }
+        const filesContext = this.getFilesContext(card.projectId, cardId);
         this.spawnAgent(cardId, project.repoPath, message, {
           sessionId,
-          systemPrompt: PLANNING_SYSTEM_PROMPT + cardContext,
+          systemPrompt: PLANNING_SYSTEM_PROMPT + cardContext + filesContext,
           column: "features",
           tools: PLANNING_TOOLS,
           disallowedTools: PLANNING_DISALLOWED_TOOLS,
@@ -530,10 +564,11 @@ class Orchestrator {
       planningContext = `\n\nPlanning discussion:\n${conversation}`;
     }
 
+    const filesContext = this.getFilesContext(card.projectId, cardId);
     const handoffMessage = `You are working directly in the repository at ${project.repoPath} on the current branch (queue mode — no worktree). Implement the feature described below. All changes will be auto-committed when you're done.
 
 Card: ${card.title}
-${card.description ? `Description: ${card.description}` : ""}${planningContext}`;
+${card.description ? `Description: ${card.description}` : ""}${planningContext}${filesContext}`;
 
     this.log(cardId, "Agent started in queue mode (no worktree).");
     this.spawnAgent(cardId, project.repoPath, handoffMessage, {
@@ -647,7 +682,8 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}`
         .where(eq(cards.id, cardId))
         .run();
 
-      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Your planning discussion is preserved in this session — proceed to implement the feature.${conflictWarning}`;
+      const filesContextForked = this.getFilesContext(card.projectId, cardId);
+      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Your planning discussion is preserved in this session — proceed to implement the feature.${conflictWarning}${filesContextForked}`;
 
       this.log(cardId, "Session forked to development environment.");
       this.spawnAgent(cardId, worktreePath, handoffMessage, {
@@ -684,7 +720,8 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}`
         planningContext = `\n\nPlanning discussion:\n${conversation}`;
       }
 
-      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Implement the feature based on the planning discussion below.${conflictWarning}${planningContext}`;
+      const filesContextNew = this.getFilesContext(card.projectId, cardId);
+      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Implement the feature based on the planning discussion below.${conflictWarning}${planningContext}${filesContextNew}`;
 
       this.log(cardId, "Session transferred to development environment.");
       this.spawnAgent(cardId, worktreePath, handoffMessage, {
@@ -957,10 +994,11 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}`
       planningContext = `\n\nPlanning discussion:\n${conversation}`;
     }
 
+    const queueFilesContext = this.getFilesContext(project.id, nextCardId);
     const handoffMessage = `You are working directly in the repository at ${project.repoPath} on the current branch (queue mode — no worktree). Implement the feature described below. All changes will be auto-committed when you're done.
 
 Card: ${nextCard.title}
-${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningContext}`;
+${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningContext}${queueFilesContext}`;
 
     this.log(nextCardId, "Queue slot available — agent started.");
     this.spawnAgent(nextCardId, project.repoPath, handoffMessage, {
@@ -1082,9 +1120,10 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
         .where(eq(projects.id, projectId))
         .run();
 
+      const projectFilesContext = this.getFilesContext(projectId);
       this.spawnProjectAgent(projectId, project.repoPath, message, {
         sessionId,
-        systemPrompt: PROJECT_CHAT_SYSTEM_PROMPT,
+        systemPrompt: PROJECT_CHAT_SYSTEM_PROMPT + projectFilesContext,
       });
     } else {
       this.spawnProjectAgent(projectId, project.repoPath, message, {

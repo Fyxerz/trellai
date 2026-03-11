@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   DragDropContext,
@@ -11,8 +11,10 @@ import { CardDetail } from "./CardDetail";
 import { ProjectChatWidget } from "@/components/chat/ProjectChatWidget";
 import { UsageCounter } from "./UsageCounter";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { FileUploadButton } from "@/components/files/FileUploadButton";
+import { ProjectFilesPopover } from "@/components/files/ProjectFilesPopover";
 import { useBoard } from "@/hooks/useBoard";
-import type { Card, Column as ColumnType } from "@/types";
+import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { Loader2, ArrowLeft } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "production", "review", "complete"];
@@ -26,6 +28,42 @@ function BoardInner({ projectId }: BoardProps) {
   const searchParams = useSearchParams();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const deepLinked = useRef(false);
+  const [projectFiles, setProjectFiles] = useState<FileAttachment[]>([]);
+  const [uploadingProjectFiles, setUploadingProjectFiles] = useState(false);
+  const [boardDragOver, setBoardDragOver] = useState(false);
+
+  const fetchProjectFiles = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/files`);
+      if (res.ok) setProjectFiles(await res.json());
+    } catch {
+      // ignore
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!board.loading) fetchProjectFiles();
+  }, [board.loading, fetchProjectFiles]);
+
+  const handleProjectFileUpload = async (fileList: FileList | File[]) => {
+    setUploadingProjectFiles(true);
+    try {
+      const formData = new FormData();
+      Array.from(fileList).forEach((f) => formData.append("files", f));
+      const res = await fetch(`/api/projects/${projectId}/files`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) await fetchProjectFiles();
+    } finally {
+      setUploadingProjectFiles(false);
+    }
+  };
+
+  const handleDeleteProjectFile = async (fileId: string) => {
+    await fetch(`/api/projects/${projectId}/files?fileId=${fileId}`, { method: "DELETE" });
+    await fetchProjectFiles();
+  };
 
   // Deep-link: auto-open card from ?card= query param
   useEffect(() => {
@@ -95,7 +133,29 @@ function BoardInner({ projectId }: BoardProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden relative">
+    <div
+      className={`flex h-screen flex-col overflow-hidden relative transition-colors ${boardDragOver ? "ring-2 ring-inset ring-violet-400/30" : ""}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setBoardDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+          setBoardDragOver(false);
+        }
+      }}
+      onDrop={async (e) => {
+        // Only handle if not caught by a card
+        if (e.defaultPrevented) return;
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length === 0) return;
+        e.preventDefault();
+        setBoardDragOver(false);
+        await handleProjectFileUpload(droppedFiles);
+      }}
+    >
       {/* Header */}
       <AppHeader
         breadcrumbs={[
@@ -126,6 +186,12 @@ function BoardInner({ projectId }: BoardProps) {
                 Queue
               </button>
             </div>
+            <ProjectFilesPopover
+              files={projectFiles}
+              onUpload={handleProjectFileUpload}
+              onDelete={handleDeleteProjectFile}
+              uploading={uploadingProjectFiles}
+            />
             <UsageCounter />
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20" />
           </div>
