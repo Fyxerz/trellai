@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { EventEmitter } from "events";
 
 export interface SpawnOptions {
@@ -12,6 +12,8 @@ export interface SpawnOptions {
   tools?: string[];
   /** Explicitly disallowed tools (belt-and-suspenders with tools) */
   disallowedTools?: string[];
+  /** In-process MCP servers to expose to the agent */
+  mcpServers?: Record<string, McpSdkServerConfigWithInstance>;
 }
 
 export class ClaudeProcess extends EventEmitter {
@@ -61,6 +63,9 @@ export class ClaudeProcess extends EventEmitter {
     }
     if (options.disallowedTools) {
       queryOptions.disallowedTools = options.disallowedTools;
+    }
+    if (options.mcpServers) {
+      queryOptions.mcpServers = options.mcpServers;
     }
 
     console.log(`[claude-process] Starting SDK query: cwd=${workDir}, session=${options.sessionId || "none"}, resume=${options.resumeSessionId || "none"}`);

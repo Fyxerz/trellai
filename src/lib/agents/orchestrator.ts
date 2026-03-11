@@ -8,6 +8,7 @@ import { v4 as uuid } from "uuid";
 import { existsSync } from "fs";
 import { emitToCard, emitToProject, emitGlobal } from "@/lib/socket";
 import { copySessionToProject } from "./session-transfer";
+import { createBoardMcpServer } from "./mcp-tools";
 
 const PLANNING_SYSTEM_PROMPT = `You are helping plan and build a feature. You have READ-ONLY access to the codebase — you can explore files, search code, and run read-only commands, but you cannot edit or create files. Start by discussing requirements with the user. Ask clarifying questions to refine the spec. When you and the user agree the spec is ready for implementation, include [READY_FOR_DEVELOPMENT] at the end of your response — this will signal that the card is ready to move to development.`;
 
@@ -18,10 +19,7 @@ const PLANNING_DISALLOWED_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
 const PROJECT_CHAT_SYSTEM_PROMPT = `You are a project assistant for a Kanban board. You can explore the codebase (read-only) and answer questions about the project.
 
-You can also create cards on the board. To create a card, output this exact format on its own line:
-[CREATE_CARD title="Card Title" description="Card description" type="feature"]
-
-Valid types are "feature" or "fix". The card will be created in the "features" column automatically. You may create multiple cards in one response.
+You have a tool called "create_card" to add cards to the backlog. Use it when the user asks you to create tasks, features, or fixes. You may create multiple cards in one response.
 
 Do NOT modify any files. Only use read-only tools (Read, Grep, Glob, Bash for read-only commands like ls, git log, etc).`;
 
@@ -1118,47 +1116,6 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       const content = data.content;
       console.log(`[orchestrator] projectOutput(${projectId}): type=${data.type} len=${content?.length}`);
 
-      // Check for CREATE_CARD markers in result messages
-      if (data.type === "result" && content.includes("[CREATE_CARD")) {
-        const { cleanedContent, cardsCreated } = this.parseAndCreateCards(projectId, content);
-
-        if (cardsCreated > 0) {
-          // Emit card-created event so board can refresh
-          try {
-            emitToProject(projectId, "project:card-created", { projectId, count: cardsCreated });
-          } catch {
-            // Socket may not be available
-          }
-        }
-
-        // Persist the cleaned content
-        if (cleanedContent.trim()) {
-          db.insert(chatMessages)
-            .values({
-              id: uuid(),
-              cardId: null,
-              projectId,
-              role: "assistant",
-              content: cleanedContent,
-              column: "project",
-              createdAt: new Date().toISOString(),
-            })
-            .run();
-        }
-
-        try {
-          emitToProject(projectId, "agent:output", {
-            projectId,
-            type: "result",
-            content: cleanedContent,
-            timestamp: new Date().toISOString(),
-          });
-        } catch {
-          // Socket may not be available
-        }
-        return;
-      }
-
       // Emit via socket for real-time display
       try {
         emitToProject(projectId, "agent:output", {
@@ -1237,49 +1194,15 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       }
     });
 
+    // Create project-scoped MCP server with board tools (e.g. create_card)
+    const boardMcp = createBoardMcpServer(projectId);
+
     proc.spawn(workDir, prompt, {
       sessionId: options.sessionId,
       resumeSessionId: options.resumeSessionId,
       systemPrompt: options.systemPrompt,
+      mcpServers: { "trellai-board": boardMcp },
     });
-  }
-
-  private parseAndCreateCards(projectId: string, content: string): { cleanedContent: string; cardsCreated: number } {
-    const regex = /\[CREATE_CARD\s+title="([^"]+)"\s+description="([^"]+)"\s+type="([^"]+)"\]/g;
-    let cardsCreated = 0;
-    let cleanedContent = content;
-
-    let match;
-    while ((match = regex.exec(content)) !== null) {
-      const [fullMatch, title, description, type] = match;
-      const id = uuid();
-      const now = new Date().toISOString();
-
-      // Get max position in features column
-      const existing = db.select().from(cards).where(eq(cards.projectId, projectId)).all();
-      const featureCards = existing.filter((c) => c.column === "features");
-      const maxPos = featureCards.reduce((max, c) => Math.max(max, c.position), -1);
-
-      db.insert(cards)
-        .values({
-          id,
-          projectId,
-          title,
-          description: description || "",
-          type: type === "fix" ? "fix" : "feature",
-          column: "features",
-          position: maxPos + 1,
-          agentStatus: "idle",
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
-
-      cleanedContent = cleanedContent.replace(fullMatch, `Created card: "${title}"`);
-      cardsCreated++;
-    }
-
-    return { cleanedContent, cardsCreated };
   }
 
   getProjectAgentStatus(projectId: string): { running: boolean } {
