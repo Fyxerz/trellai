@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { db } from "@/lib/db";
 import { cards, chatMessages } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 
 export async function POST(req: NextRequest) {
@@ -22,9 +22,24 @@ export async function POST(req: NextRequest) {
     }
 
     switch (action) {
-      case "send_message":
+      case "send_message": {
+        // Persist the user message immediately before calling the orchestrator.
+        // Previously, the save lived inside orchestrator.sendMessage() and could
+        // be skipped if any earlier check (card/project lookup) threw.
+        const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId,
+            role: "user",
+            content: message,
+            column: card?.column || "production",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
         await orchestrator.sendMessage(cardId, message);
         return NextResponse.json({ success: true });
+      }
 
       case "stop":
         orchestrator.stopAgent(cardId);
@@ -77,6 +92,7 @@ export async function GET(req: NextRequest) {
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.cardId, cardId))
+    .orderBy(asc(chatMessages.createdAt))
     .all();
 
   return NextResponse.json(messages);

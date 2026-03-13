@@ -97,23 +97,18 @@ class Orchestrator {
       .get();
     if (!project) throw new Error("Project not found");
 
-    // Save user message to DB
-    db.insert(chatMessages)
-      .values({
-        id: uuid(),
-        cardId,
-        role: "user",
-        content: message,
-        column: card.column,
-        createdAt: new Date().toISOString(),
-      })
-      .run();
+    // User message is now persisted by the API route before calling sendMessage,
+    // so we no longer save it here (avoids duplicates and ensures persistence
+    // even if later checks in this method throw).
 
     const proc = this.processes.get(cardId);
 
     // If process is already running, stop it first (SDK doesn't support mid-stream messages)
     if (proc?.isRunning) {
       console.log(`[orchestrator] Stopping running process for ${cardId} to send new message`);
+      // Remove all listeners before stopping so the old process's async exit
+      // handler doesn't clobber the new process we're about to spawn.
+      proc.removeAllListeners();
       proc.stop();
       this.processes.delete(cardId);
     }
@@ -490,6 +485,7 @@ class Orchestrator {
     // Stop the existing planning process if running
     const existingProc = this.processes.get(cardId);
     if (existingProc?.isRunning) {
+      existingProc.removeAllListeners();
       existingProc.stop();
       this.processes.delete(cardId);
     }
@@ -591,6 +587,7 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
     // Stop the existing planning process if running
     const existingProc = this.processes.get(cardId);
     if (existingProc?.isRunning) {
+      existingProc.removeAllListeners();
       existingProc.stop();
       this.processes.delete(cardId);
     }
