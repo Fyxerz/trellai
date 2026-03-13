@@ -10,10 +10,17 @@ function buildToolMarker(toolCounts: Map<string, number>): string {
   return `\n{{tools:${parts.join(",")}}}`;
 }
 
+export interface PendingQuestion {
+  questionId: string;
+  question: string;
+  options: string[];
+}
+
 export function useChat(cardId: string | null, onAutoMove?: () => void) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agentRunning, setAgentRunning] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const toolCountsRef = useRef<Map<string, number>>(new Map());
 
@@ -186,6 +193,15 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       }
     });
 
+    socket.on("agent:question", (data) => {
+      if (data.cardId !== cardId) return;
+      setPendingQuestion({
+        questionId: data.questionId,
+        question: data.question,
+        options: data.options,
+      });
+    });
+
     return () => {
       socket.emit("leave:card", cardId);
       socket.disconnect();
@@ -297,5 +313,49 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     });
   }, [cardId]);
 
-  return { messages, agentRunning, streaming, sendMessage, confirmMoveToDev, stopAgent, refreshMessages: fetchMessages };
+  const answerQuestion = useCallback(async (questionId: string, answer: string, questionText: string) => {
+    if (!cardId) return;
+
+    // Optimistic update: show Q&A in messages and clear the question
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        cardId,
+        role: "user",
+        content: answer,
+        column: "features" as Column,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    setPendingQuestion(null);
+
+    try {
+      await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "answer_question",
+          cardId,
+          questionId,
+          answer,
+          question: questionText,
+        }),
+      });
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          cardId,
+          role: "system",
+          content: `Error answering question: ${err instanceof Error ? err.message : "Unknown error"}`,
+          column: "features" as Column,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    }
+  }, [cardId]);
+
+  return { messages, agentRunning, streaming, pendingQuestion, sendMessage, confirmMoveToDev, stopAgent, answerQuestion, refreshMessages: fetchMessages };
 }

@@ -3,6 +3,7 @@ import { useRef, useEffect } from "react";
 import { useChat } from "@/hooks/useChat";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { QuestionCard } from "./QuestionCard";
 import { MessageSquare, Sparkles, Rocket } from "lucide-react";
 import type { Column } from "@/types";
 
@@ -15,7 +16,7 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMove }: ChatPanelProps) {
-  const { messages, agentRunning, streaming, sendMessage, confirmMoveToDev, stopAgent } = useChat(cardId, onAutoMove);
+  const { messages, agentRunning, streaming, pendingQuestion, sendMessage, confirmMoveToDev, stopAgent, answerQuestion } = useChat(cardId, onAutoMove);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,7 +76,13 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
-          {streaming && (
+          {pendingQuestion && (
+            <QuestionCard
+              question={pendingQuestion}
+              onAnswer={answerQuestion}
+            />
+          )}
+          {streaming && !pendingQuestion && (
             <div className="flex items-center gap-1.5 px-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse [animation-delay:150ms]" />

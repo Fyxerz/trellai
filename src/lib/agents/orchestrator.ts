@@ -8,9 +8,11 @@ import { v4 as uuid } from "uuid";
 import { existsSync } from "fs";
 import { emitToCard, emitToProject, emitGlobal } from "@/lib/socket";
 import { copySessionToProject } from "./session-transfer";
-import { createBoardMcpServer } from "./mcp-tools";
+import { createBoardMcpServer, createQuestionMcpServer } from "./mcp-tools";
 
-const PLANNING_SYSTEM_PROMPT = `You are helping plan and build a feature. You have READ-ONLY access to the codebase — you can explore files, search code, and run read-only commands, but you cannot edit or create files. Start by discussing requirements with the user. Ask clarifying questions to refine the spec. When you and the user agree the spec is ready for implementation, include [READY_FOR_DEVELOPMENT] at the end of your response — this will signal that the card is ready to move to development.`;
+const PLANNING_SYSTEM_PROMPT = `You are helping plan and build a feature. You have READ-ONLY access to the codebase — you can explore files, search code, and run read-only commands, but you cannot edit or create files. Start by discussing requirements with the user. Ask clarifying questions to refine the spec. When you and the user agree the spec is ready for implementation, include [READY_FOR_DEVELOPMENT] at the end of your response — this will signal that the card is ready to move to development.
+
+You have a tool called "ask_question" to ask the user clarifying questions. ALWAYS use this tool instead of asking questions in plain text. Provide 2-3 specific answer options for each question. The user can also write a custom response. Ask ONE question at a time — do not batch multiple questions into a single tool call.`;
 
 /** Tools available to planning agents — read-only exploration only */
 const PLANNING_TOOLS = ["Read", "Grep", "Glob", "Bash", "Agent"];
@@ -133,12 +135,14 @@ class Orchestrator {
           cardContext += `\n\nChecklist:\n${todos.map(t => `- [${t.checked ? "x" : " "}] ${t.text}`).join("\n")}`;
         }
         const filesContext = this.getFilesContext(card.projectId, cardId);
+        const questionMcp = createQuestionMcpServer(cardId);
         this.spawnAgent(cardId, project.repoPath, message, {
           sessionId,
           systemPrompt: PLANNING_SYSTEM_PROMPT + cardContext + filesContext,
           column: "features",
           tools: PLANNING_TOOLS,
           disallowedTools: PLANNING_DISALLOWED_TOOLS,
+          mcpServers: { "trellai-questions": questionMcp },
         });
       } else {
         // Resume existing session with the new message
@@ -147,11 +151,13 @@ class Orchestrator {
           .where(eq(cards.id, cardId))
           .run();
 
+        const questionMcpResume = createQuestionMcpServer(cardId);
         this.spawnAgent(cardId, project.repoPath, message, {
           resumeSessionId: card.claudeSessionId!,
           column: "features",
           tools: PLANNING_TOOLS,
           disallowedTools: PLANNING_DISALLOWED_TOOLS,
+          mcpServers: { "trellai-questions": questionMcpResume },
         });
       }
     } else if (card.column === "production" && card.worktreePath) {
@@ -227,6 +233,7 @@ class Orchestrator {
       column: string;
       tools?: string[];
       disallowedTools?: string[];
+      mcpServers?: Record<string, import("@anthropic-ai/claude-agent-sdk").McpSdkServerConfigWithInstance>;
     }
   ) {
     const proc = new ClaudeProcess();
@@ -413,6 +420,7 @@ class Orchestrator {
       systemPrompt: options.systemPrompt,
       tools: options.tools,
       disallowedTools: options.disallowedTools,
+      mcpServers: options.mcpServers,
     });
   }
 
