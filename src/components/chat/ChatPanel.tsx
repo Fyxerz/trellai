@@ -23,17 +23,20 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
   const lastScrollTime = useRef(0);
   const scrollRAF = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
+  const prevMessageCount = useRef(0);
 
-  // Smart scroll: only auto-scroll if user is near the bottom, throttled
-  const smartScroll = useCallback(() => {
+  // Smart scroll: only auto-scroll if user is near the bottom, throttled.
+  // `force` bypasses the near-bottom check (used for initial load).
+  const smartScroll = useCallback((force = false) => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isNearBottom = distanceFromBottom < 150;
-
-    if (!isNearBottom) return;
+    if (!force) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const isNearBottom = distanceFromBottom < 150;
+      if (!isNearBottom) return;
+    }
 
     const now = Date.now();
     if (now - lastScrollTime.current < 200) {
@@ -51,24 +54,31 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
   }, []);
 
   useEffect(() => {
-    if (ready) smartScroll();
+    if (!ready) {
+      // Not ready yet — this is the initial message load after card opened.
+      // Jump instantly to bottom once messages appear, then enable animations.
+      if (messages.length > 0 && messages.length !== prevMessageCount.current) {
+        requestAnimationFrame(() => {
+          const container = scrollContainerRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+          // Enable animations on the next frame after scroll is done
+          requestAnimationFrame(() => {
+            setReady(true);
+          });
+        });
+      }
+    } else {
+      smartScroll();
+    }
+    prevMessageCount.current = messages.length;
   }, [messages, smartScroll, ready]);
 
-  // On initial mount / card change: instantly jump to bottom (no animation),
-  // then mark as ready so future messages get smooth behavior
+  // On card change: reset to not-ready state (suppresses animations + forces initial scroll)
   useEffect(() => {
     setReady(false);
-    // Use rAF to ensure messages have rendered before scrolling
-    requestAnimationFrame(() => {
-      const container = scrollContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-      // Small delay before enabling animations so initial messages don't animate
-      requestAnimationFrame(() => {
-        setReady(true);
-      });
-    });
+    prevMessageCount.current = 0;
   }, [cardId]);
 
   const streamingId = `streaming-${cardId}`;
