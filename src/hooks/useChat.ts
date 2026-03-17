@@ -240,7 +240,8 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       socket.emit("leave:card", cardId);
       socket.disconnect();
     };
-  }, [cardId, fetchMessages, fetchAgentStatus, fetchPendingQuestion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId]);
 
   const sendMessage = async (content: string, column: Column) => {
     if (!cardId) return;
