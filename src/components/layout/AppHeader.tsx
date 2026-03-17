@@ -14,7 +14,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ breadcrumbs, actions }: AppHeaderProps) {
   return (
-    <header className="relative z-10 flex items-center justify-between px-8 py-4">
+    <header className="relative z-20 flex items-center justify-between px-8 py-4">
       <div className="flex items-center gap-3">
         <Link
           href="/"
