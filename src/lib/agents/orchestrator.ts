@@ -34,6 +34,8 @@ class Orchestrator {
   private streamingBuffers = new Map<string, {
     text: string;
     toolCounts: Map<string, number>;
+    segments: Array<{ kind: string; content: string; toolName?: string; input?: string; tools?: Array<{ name: string; count: number }> }>;
+    thinkingBuffer: string;
     column: string;
   }>();
 
@@ -43,8 +45,38 @@ class Orchestrator {
     return {
       text: buf.text,
       toolCounts: Object.fromEntries(buf.toolCounts),
+      segments: buf.segments,
       column: buf.column,
     };
+  }
+
+  private getOrCreateBuffer(cardId: string, column: string) {
+    let buf = this.streamingBuffers.get(cardId);
+    if (!buf) {
+      buf = { text: "", toolCounts: new Map(), segments: [], thinkingBuffer: "", column };
+      this.streamingBuffers.set(cardId, buf);
+    }
+    buf.column = column;
+    return buf;
+  }
+
+  private flushThinkingBuffer(cardId: string, column: string) {
+    const buf = this.streamingBuffers.get(cardId);
+    if (!buf || !buf.thinkingBuffer) return;
+    const thinking = buf.thinkingBuffer;
+    buf.thinkingBuffer = "";
+    // Persist thinking to DB
+    db.insert(chatMessages)
+      .values({
+        id: uuid(),
+        cardId,
+        role: "assistant",
+        content: thinking,
+        column,
+        messageType: "thinking",
+        createdAt: new Date().toISOString(),
+      })
+      .run();
   }
 
   private log(cardId: string, content: string, column = "production") {
@@ -306,28 +338,111 @@ class Orchestrator {
       }
 
       // Update streaming buffer for state reconstruction on reopen
-      if (data.type === "tool_use") {
-        const buf = this.streamingBuffers.get(cardId) || { text: "", toolCounts: new Map(), column: options.column };
-        const toolName = data.content.replace("Using tool: ", "").trim();
-        buf.toolCounts.set(toolName, (buf.toolCounts.get(toolName) || 0) + 1);
-        buf.column = options.column;
-        this.streamingBuffers.set(cardId, buf);
-      } else if (data.type === "text") {
-        const buf = this.streamingBuffers.get(cardId) || { text: "", toolCounts: new Map(), column: options.column };
-        if (buf.toolCounts.size > 0) {
-          // Group boundary: bake tool marker into text then reset counts
-          const parts = Array.from(buf.toolCounts.entries()).map(([n, c]) => `${n}×${c}`);
-          buf.text += `\n{{tools:${parts.join(",")}}}`;
-          buf.toolCounts = new Map();
+      const buf = this.getOrCreateBuffer(cardId, options.column);
+
+      if (data.type === "thinking") {
+        buf.thinkingBuffer += data.content;
+        // Add/update thinking segment
+        const lastSeg = buf.segments[buf.segments.length - 1];
+        if (lastSeg && lastSeg.kind === "thinking") {
+          lastSeg.content += data.content;
+        } else {
+          buf.segments.push({ kind: "thinking", content: data.content });
         }
+      } else if (data.type === "tool_use") {
+        // Flush any pending thinking before tool use
+        this.flushThinkingBuffer(cardId, options.column);
+        const toolName = (data.toolName || data.content.replace("Using tool: ", "")).trim();
+        buf.toolCounts.set(toolName, (buf.toolCounts.get(toolName) || 0) + 1);
+        buf.segments.push({ kind: "tool_use", content: data.content, toolName, input: "" });
+      } else if (data.type === "tool_input") {
+        // Update the last tool_use segment with input details
+        const lastToolSeg = [...buf.segments].reverse().find(s => s.kind === "tool_use");
+        if (lastToolSeg) {
+          lastToolSeg.input = data.content;
+        }
+        // Persist tool input
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId,
+            role: "assistant",
+            content: data.content,
+            column: options.column,
+            messageType: "tool_input",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "tool_result") {
+        buf.segments.push({ kind: "tool_result", content: data.content, toolName: data.toolName || "unknown" });
+        // Persist tool result
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId,
+            role: "assistant",
+            content: data.content,
+            column: options.column,
+            messageType: "tool_result",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "tool_summary") {
+        // Persist tool summary
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId,
+            role: "assistant",
+            content: data.content,
+            column: options.column,
+            messageType: "tool_summary",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "text") {
+        // Flush any pending thinking before text output
+        this.flushThinkingBuffer(cardId, options.column);
         buf.text += data.content;
-        buf.column = options.column;
-        this.streamingBuffers.set(cardId, buf);
+        const lastSeg = buf.segments[buf.segments.length - 1];
+        if (lastSeg && lastSeg.kind === "text") {
+          lastSeg.content += data.content;
+        } else {
+          buf.segments.push({ kind: "text", content: data.content });
+        }
       } else if (data.type === "result") {
+        // Flush remaining thinking buffer
+        this.flushThinkingBuffer(cardId, options.column);
         this.streamingBuffers.delete(cardId);
+        // Persist final result
+        if (data.content) {
+          db.insert(chatMessages)
+            .values({
+              id: uuid(),
+              cardId,
+              role: "assistant",
+              content: data.content,
+              column: options.column,
+              messageType: null,
+              createdAt: new Date().toISOString(),
+            })
+            .run();
+        }
+      } else if (data.type === "system") {
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId,
+            role: "system",
+            content: data.content,
+            column: options.column,
+            messageType: null,
+            createdAt: new Date().toISOString(),
+          })
+          .run();
       }
 
-      // Emit via socket for real-time display
+      // Emit via socket for real-time display (all types)
       try {
         emitToCard(cardId, "agent:output", {
           cardId,
@@ -337,20 +452,6 @@ class Orchestrator {
         });
       } catch {
         // Socket may not be available
-      }
-
-      // Only persist final results and system events to DB (not streaming deltas or tool_use)
-      if (data.type === "result" || data.type === "system") {
-        db.insert(chatMessages)
-          .values({
-            id: uuid(),
-            cardId,
-            role: data.type === "system" ? "system" : "assistant",
-            content: data.content,
-            column: options.column,
-            createdAt: new Date().toISOString(),
-          })
-          .run();
       }
     });
 
@@ -385,6 +486,8 @@ class Orchestrator {
     proc.on("exit", (code) => {
       console.log(`[orchestrator] exit(${cardId}): code=${code}`);
       this.processes.delete(cardId);
+      // Flush any remaining thinking buffer before cleanup
+      this.flushThinkingBuffer(cardId, options.column);
       this.streamingBuffers.delete(cardId);
 
       // Determine status based on column context
@@ -1213,16 +1316,71 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
         // Socket may not be available
       }
 
-      // Persist final results and system events (not tool_use)
-      if (data.type === "result" || data.type === "system") {
+      // Persist verbose output to DB
+      if (data.type === "result") {
+        if (data.content) {
+          db.insert(chatMessages)
+            .values({
+              id: uuid(),
+              cardId: null,
+              projectId,
+              role: "assistant",
+              content: data.content,
+              column: "project",
+              messageType: null,
+              createdAt: new Date().toISOString(),
+            })
+            .run();
+        }
+      } else if (data.type === "system") {
         db.insert(chatMessages)
           .values({
             id: uuid(),
             cardId: null,
             projectId,
-            role: data.type === "system" ? "system" : "assistant",
+            role: "system",
             content: data.content,
             column: "project",
+            messageType: null,
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "thinking") {
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId: null,
+            projectId,
+            role: "assistant",
+            content: data.content,
+            column: "project",
+            messageType: "thinking",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "tool_input") {
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId: null,
+            projectId,
+            role: "assistant",
+            content: data.content,
+            column: "project",
+            messageType: "tool_input",
+            createdAt: new Date().toISOString(),
+          })
+          .run();
+      } else if (data.type === "tool_result") {
+        db.insert(chatMessages)
+          .values({
+            id: uuid(),
+            cardId: null,
+            projectId,
+            role: "assistant",
+            content: data.content,
+            column: "project",
+            messageType: "tool_result",
             createdAt: new Date().toISOString(),
           })
           .run();

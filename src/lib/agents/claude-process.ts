@@ -16,10 +16,46 @@ export interface SpawnOptions {
   mcpServers?: Record<string, McpSdkServerConfigWithInstance>;
 }
 
+interface ActiveBlock {
+  type: string;
+  toolName?: string;
+  inputChunks?: string[];
+}
+
+function formatToolInput(toolName: string, input: Record<string, unknown>): string {
+  switch (toolName) {
+    case "Read":
+      return `Read: ${input.file_path || ""}`;
+    case "Write":
+      return `Write: ${input.file_path || ""}`;
+    case "Edit":
+      return `Edit: ${input.file_path || ""}`;
+    case "Bash": {
+      const cmd = String(input.command || "");
+      return `Bash: ${cmd.length > 120 ? cmd.slice(0, 120) + "…" : cmd}`;
+    }
+    case "Grep": {
+      const pattern = input.pattern || "";
+      const path = input.path || ".";
+      return `Grep: "${pattern}" in ${path}`;
+    }
+    case "Glob":
+      return `Glob: ${input.pattern || ""}`;
+    case "Agent":
+      return `Agent: ${input.description || ""}`;
+    default: {
+      const json = JSON.stringify(input);
+      return `${toolName}: ${json.length > 120 ? json.slice(0, 120) + "…" : json}`;
+    }
+  }
+}
+
 export class ClaudeProcess extends EventEmitter {
   private activeQuery: ReturnType<typeof query> | null = null;
   private _isRunning = false;
   private abortController: AbortController | null = null;
+  private activeBlocks = new Map<number, ActiveBlock>();
+  private lastToolName: string | null = null;
 
   get isRunning() {
     return this._isRunning;
@@ -36,6 +72,8 @@ export class ClaudeProcess extends EventEmitter {
 
     this.abortController = new AbortController();
     this._isRunning = true;
+    this.activeBlocks.clear();
+    this.lastToolName = null;
 
     const queryOptions: Options = {
       model: "claude-opus-4-6",
@@ -113,11 +151,52 @@ export class ClaudeProcess extends EventEmitter {
   private handleMessage(msg: any): void {
     switch (msg.type) {
       case "assistant": {
-        // Full assistant message (end of turn) — tool_use blocks for display
+        // Full assistant message (end of turn) — extract tool results from content blocks
         if (msg.message?.content) {
           for (const block of msg.message.content) {
             if (block.type === "tool_use" && block.name) {
-              this.emit("output", { type: "tool_use", content: `Using tool: ${block.name}` });
+              // Already emitted via stream_event, but emit again as a safety net
+              // (only if we haven't seen this block via streaming)
+            }
+            if (block.type === "tool_result") {
+              const resultContent = typeof block.content === "string"
+                ? block.content
+                : Array.isArray(block.content)
+                  ? block.content.map((b: { text?: string }) => b.text || "").join("\n")
+                  : JSON.stringify(block.content);
+              const truncated = resultContent.length > 500
+                ? resultContent.slice(0, 500) + "…"
+                : resultContent;
+              this.emit("output", {
+                type: "tool_result",
+                content: truncated,
+                toolName: this.lastToolName || "unknown",
+              });
+            }
+          }
+        }
+        break;
+      }
+
+      case "user": {
+        // User messages can contain tool_result blocks
+        if (msg.message?.content) {
+          const content = Array.isArray(msg.message.content) ? msg.message.content : [msg.message.content];
+          for (const block of content) {
+            if (block.type === "tool_result") {
+              const resultText = typeof block.content === "string"
+                ? block.content
+                : Array.isArray(block.content)
+                  ? block.content.map((b: { text?: string }) => b.text || "").join("\n")
+                  : JSON.stringify(block.content || "");
+              const truncated = resultText.length > 500
+                ? resultText.slice(0, 500) + "…"
+                : resultText;
+              this.emit("output", {
+                type: "tool_result",
+                content: truncated,
+                toolName: this.lastToolName || "unknown",
+              });
             }
           }
         }
@@ -125,13 +204,89 @@ export class ClaudeProcess extends EventEmitter {
       }
 
       case "stream_event": {
-        // Streaming partial — extract text deltas from BetaRawMessageStreamEvent
         const event = msg.event;
-        if (event?.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
+        if (!event) break;
+
+        // Thinking block start
+        if (event.type === "content_block_start" && event.content_block?.type === "thinking") {
+          const idx = event.index ?? 0;
+          this.activeBlocks.set(idx, { type: "thinking" });
+          // Don't emit start marker — we'll stream deltas
+        }
+
+        // Thinking delta
+        if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta" && event.delta.thinking) {
+          this.emit("output", { type: "thinking", content: event.delta.thinking });
+        }
+
+        // Text delta
+        if (event.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
           this.emit("output", { type: "text", content: event.delta.text });
         }
-        if (event?.type === "content_block_start" && event.content_block?.type === "tool_use" && event.content_block.name) {
-          this.emit("output", { type: "tool_use", content: `Using tool: ${event.content_block.name}` });
+
+        // Tool use block start
+        if (event.type === "content_block_start" && event.content_block?.type === "tool_use" && event.content_block.name) {
+          const idx = event.index ?? 0;
+          const toolName = event.content_block.name;
+          this.activeBlocks.set(idx, { type: "tool_use", toolName, inputChunks: [] });
+          this.lastToolName = toolName;
+          this.emit("output", { type: "tool_use", content: `Using tool: ${toolName}`, toolName });
+        }
+
+        // Tool input JSON delta
+        if (event.type === "content_block_delta" && event.delta?.type === "input_json_delta" && event.delta.partial_json) {
+          // Find the active tool_use block
+          for (const [, block] of this.activeBlocks) {
+            if (block.type === "tool_use" && block.inputChunks) {
+              block.inputChunks.push(event.delta.partial_json);
+            }
+          }
+        }
+
+        // Content block stop — finalize tool input
+        if (event.type === "content_block_stop") {
+          const idx = event.index ?? 0;
+          const block = this.activeBlocks.get(idx);
+          if (block?.type === "tool_use" && block.inputChunks && block.toolName) {
+            try {
+              const inputJson = JSON.parse(block.inputChunks.join(""));
+              const formatted = formatToolInput(block.toolName, inputJson);
+              this.emit("output", {
+                type: "tool_input",
+                content: formatted,
+                toolName: block.toolName,
+                toolInput: inputJson,
+              });
+            } catch {
+              // JSON parse failed — emit what we have
+              this.emit("output", {
+                type: "tool_input",
+                content: `${block.toolName}: (input unavailable)`,
+                toolName: block.toolName,
+              });
+            }
+          }
+          this.activeBlocks.delete(idx);
+        }
+
+        break;
+      }
+
+      case "tool_use_summary": {
+        // Human-readable summary from the SDK
+        if (msg.summary) {
+          this.emit("output", { type: "tool_summary", content: msg.summary });
+        }
+        break;
+      }
+
+      case "tool_progress": {
+        if (msg.tool_name) {
+          this.emit("output", {
+            type: "tool_progress",
+            content: msg.tool_name,
+            toolName: msg.tool_name,
+          });
         }
         break;
       }

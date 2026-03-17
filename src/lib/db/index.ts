@@ -118,6 +118,13 @@ try {
   // Column already exists
 }
 
+// Migrate: add message_type column to chat_messages for verbose agent output
+try {
+  sqlite.exec(`ALTER TABLE chat_messages ADD COLUMN message_type TEXT`);
+} catch {
+  // Column already exists
+}
+
 // Migrate: create files table for user uploads
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS files (

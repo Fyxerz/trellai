@@ -41,6 +41,13 @@ export interface ChecklistItem {
   createdAt: string;
 }
 
+export type ChatSegment =
+  | { kind: "text"; content: string }
+  | { kind: "thinking"; content: string }
+  | { kind: "tool_use"; toolName: string; input: string }
+  | { kind: "tool_result"; toolName: string; content: string }
+  | { kind: "tools_compact"; tools: { name: string; count: number }[] };
+
 export interface ChatMessage {
   id: string;
   cardId: string | null;
@@ -48,6 +55,8 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   column: Column | "project";
+  messageType?: string | null;
+  segments?: ChatSegment[];
   createdAt: string;
 }
 
@@ -63,8 +72,10 @@ export interface FileAttachment {
 }
 
 export interface AgentOutput {
-  type: "text" | "tool_use" | "tool_result" | "status" | "error" | "result";
+  type: "text" | "tool_use" | "tool_input" | "tool_result" | "tool_summary" | "tool_progress" | "thinking" | "status" | "error" | "result" | "system";
   content: string;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
   timestamp: string;
 }
 

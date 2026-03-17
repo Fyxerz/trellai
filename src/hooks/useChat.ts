@@ -1,14 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import type { ChatMessage, Column } from "@/types";
-
-function buildToolMarker(toolCounts: Map<string, number>): string {
-  const parts = Array.from(toolCounts.entries()).map(
-    ([name, count]) => `${name}×${count}`
-  );
-  return `\n{{tools:${parts.join(",")}}}`;
-}
+import type { ChatMessage, ChatSegment, Column } from "@/types";
 
 export interface PendingQuestion {
   questionId: string;
@@ -22,13 +15,18 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
   const [streaming, setStreaming] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const toolCountsRef = useRef<Map<string, number>>(new Map());
+  const segmentsRef = useRef<ChatSegment[]>([]);
 
   const fetchMessages = useCallback(async () => {
     if (!cardId) return;
     const res = await fetch(`/api/agents?cardId=${cardId}`);
     const data = await res.json();
-    setMessages(data);
+    // Attach segments from messageType for historical messages
+    const enriched = data.map((msg: ChatMessage & { messageType?: string }) => ({
+      ...msg,
+      segments: undefined, // Will be parsed on render from messageType
+    }));
+    setMessages(enriched);
   }, [cardId]);
 
   const fetchAgentStatus = useCallback(async () => {
@@ -56,19 +54,22 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       });
       const data = await res.json();
       if (!data) return;
-      // Reconstruct the streaming message from the orchestrator's buffer
       const streamingId = `streaming-${cardId}`;
-      // Restore tool counts
-      const restoredToolCounts = new Map<string, number>(
-        Object.entries(data.toolCounts || {}).map(([k, v]) => [k, v as number])
+
+      // Restore segments from the orchestrator's buffer
+      const restoredSegments: ChatSegment[] = (data.segments || []).map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (seg: any) => {
+          if (seg.kind === "thinking") return { kind: "thinking", content: seg.content } as ChatSegment;
+          if (seg.kind === "tool_use") return { kind: "tool_use", toolName: seg.toolName || "", input: seg.input || "" } as ChatSegment;
+          if (seg.kind === "tool_result") return { kind: "tool_result", toolName: seg.toolName || "", content: seg.content } as ChatSegment;
+          return { kind: "text", content: seg.content } as ChatSegment;
+        }
       );
-      toolCountsRef.current = restoredToolCounts;
-      // Build content: buffered text + current tool marker (if any tools in progress)
-      let content = data.text || "";
-      if (restoredToolCounts.size > 0) {
-        content += buildToolMarker(restoredToolCounts);
-      }
-      if (!content) return;
+      segmentsRef.current = restoredSegments;
+
+      if (restoredSegments.length === 0 && !data.text) return;
+
       setStreaming(true);
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== streamingId);
@@ -78,8 +79,9 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
             id: streamingId,
             cardId,
             role: "assistant" as const,
-            content,
+            content: data.text || "",
             column: data.column || "production",
+            segments: restoredSegments,
             createdAt: new Date().toISOString(),
           },
         ];
@@ -130,7 +132,6 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       const col = data.column || "production";
 
       if (data.type === "system") {
-        // System messages: always append as standalone
         setMessages((prev) => [
           ...prev,
           {
@@ -148,7 +149,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       if (data.type === "result") {
         // Final complete message — replace any streaming placeholder
         setStreaming(false);
-        toolCountsRef.current = new Map();
+        segmentsRef.current = [];
         setMessages((prev) => {
           const streamingId = `streaming-${cardId}`;
           const filtered = prev.filter((m) => m.id !== streamingId);
@@ -168,68 +169,74 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
         return;
       }
 
-      if (data.type === "tool_use") {
-        // Compact tool uses into a single inline marker
-        setStreaming(true);
-        const streamingId = `streaming-${cardId}`;
-        const toolName = data.content.replace("Using tool: ", "").trim();
-        toolCountsRef.current.set(
-          toolName,
-          (toolCountsRef.current.get(toolName) || 0) + 1
-        );
-        const marker = buildToolMarker(toolCountsRef.current);
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === streamingId);
-          if (existing) {
-            // Replace any existing trailing marker, or append one
-            const content = existing.content.replace(/\n?{{tools:[^}]+}}/g, "") + marker;
-            return prev.map((m) =>
-              m.id === streamingId ? { ...m, content } : m
-            );
-          }
-          return [
-            ...prev,
-            {
-              id: streamingId,
-              cardId,
-              role: "assistant" as const,
-              content: marker,
-              column: col,
-              createdAt: data.timestamp,
-            },
-          ];
-        });
+      // All streaming types — update the streaming placeholder with segments
+      setStreaming(true);
+      const streamingId = `streaming-${cardId}`;
+      const segments = segmentsRef.current;
+
+      if (data.type === "thinking") {
+        const lastSeg = segments[segments.length - 1];
+        if (lastSeg && lastSeg.kind === "thinking") {
+          lastSeg.content += data.content;
+        } else {
+          segments.push({ kind: "thinking", content: data.content });
+        }
+      } else if (data.type === "tool_use") {
+        const toolName = (data.toolName || data.content.replace("Using tool: ", "")).trim();
+        segments.push({ kind: "tool_use", toolName, input: "" });
+      } else if (data.type === "tool_input") {
+        // Update the last tool_use segment with input details
+        const lastToolSeg = [...segments].reverse().find(s => s.kind === "tool_use") as { kind: "tool_use"; toolName: string; input: string } | undefined;
+        if (lastToolSeg) {
+          lastToolSeg.input = data.content;
+        }
+      } else if (data.type === "tool_result") {
+        const toolName = data.toolName || "unknown";
+        segments.push({ kind: "tool_result", toolName, content: data.content });
+      } else if (data.type === "tool_summary") {
+        segments.push({ kind: "text", content: data.content });
+      } else if (data.type === "text") {
+        const lastSeg = segments[segments.length - 1];
+        if (lastSeg && lastSeg.kind === "text") {
+          lastSeg.content += data.content;
+        } else {
+          segments.push({ kind: "text", content: data.content });
+        }
+      } else if (data.type === "tool_progress") {
+        // Don't add a segment — just keep streaming indicator alive
       }
 
-      if (data.type === "text") {
-        // Text delta — reset tool counts (group boundary) and append text
-        if (toolCountsRef.current.size > 0) {
-          toolCountsRef.current = new Map();
+      // Build content as plain text fallback from all text segments
+      const plainText = segments
+        .filter(s => s.kind === "text")
+        .map(s => s.content)
+        .join("");
+
+      // Clone segments to trigger re-render
+      const segmentsCopy = segments.map(s => ({ ...s })) as ChatSegment[];
+
+      setMessages((prev) => {
+        const existing = prev.find((m) => m.id === streamingId);
+        if (existing) {
+          return prev.map((m) =>
+            m.id === streamingId
+              ? { ...m, content: plainText, segments: segmentsCopy }
+              : m
+          );
         }
-        setStreaming(true);
-        const streamingId = `streaming-${cardId}`;
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === streamingId);
-          if (existing) {
-            return prev.map((m) =>
-              m.id === streamingId
-                ? { ...m, content: m.content + data.content }
-                : m
-            );
-          }
-          return [
-            ...prev,
-            {
-              id: streamingId,
-              cardId,
-              role: "assistant" as const,
-              content: data.content,
-              column: col,
-              createdAt: data.timestamp,
-            },
-          ];
-        });
-      }
+        return [
+          ...prev,
+          {
+            id: streamingId,
+            cardId,
+            role: "assistant" as const,
+            content: plainText,
+            column: col,
+            segments: segmentsCopy,
+            createdAt: data.timestamp,
+          },
+        ];
+      });
     });
 
     socket.on("agent:status", (data) => {

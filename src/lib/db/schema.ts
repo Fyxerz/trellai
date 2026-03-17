@@ -59,5 +59,6 @@ export const chatMessages = sqliteTable("chat_messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   column: text("column").notNull(),
+  messageType: text("message_type"),
   createdAt: text("created_at").notNull(),
 });

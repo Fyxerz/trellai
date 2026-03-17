@@ -1,14 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import type { ChatMessage } from "@/types";
-
-function buildToolMarker(toolCounts: Map<string, number>): string {
-  const parts = Array.from(toolCounts.entries()).map(
-    ([name, count]) => `${name}×${count}`
-  );
-  return `\n{{tools:${parts.join(",")}}}`;
-}
+import type { ChatMessage, ChatSegment } from "@/types";
 
 export function useProjectChat(
   projectId: string | null,
@@ -18,7 +11,7 @@ export function useProjectChat(
   const [agentRunning, setAgentRunning] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const socketRef = useRef<Socket | null>(null);
-  const toolCountsRef = useRef<Map<string, number>>(new Map());
+  const segmentsRef = useRef<ChatSegment[]>([]);
 
   const fetchMessages = useCallback(async () => {
     if (!projectId) return;
@@ -71,7 +64,7 @@ export function useProjectChat(
 
       if (data.type === "result") {
         setStreaming(false);
-        toolCountsRef.current = new Map();
+        segmentsRef.current = [];
         setMessages((prev) => {
           const streamingId = `streaming-project-${projectId}`;
           const filtered = prev.filter((m) => m.id !== streamingId);
@@ -92,67 +85,70 @@ export function useProjectChat(
         return;
       }
 
-      if (data.type === "tool_use") {
-        setStreaming(true);
-        const streamingId = `streaming-project-${projectId}`;
-        const toolName = data.content.replace("Using tool: ", "").trim();
-        toolCountsRef.current.set(
-          toolName,
-          (toolCountsRef.current.get(toolName) || 0) + 1
-        );
-        const marker = buildToolMarker(toolCountsRef.current);
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === streamingId);
-          if (existing) {
-            const content = existing.content.replace(/\n?{{tools:[^}]+}}/g, "") + marker;
-            return prev.map((m) =>
-              m.id === streamingId ? { ...m, content } : m
-            );
-          }
-          return [
-            ...prev,
-            {
-              id: streamingId,
-              cardId: null,
-              projectId,
-              role: "assistant" as const,
-              content: marker,
-              column: "project",
-              createdAt: data.timestamp,
-            },
-          ];
-        });
+      // All streaming types — update the streaming placeholder with segments
+      setStreaming(true);
+      const streamingId = `streaming-project-${projectId}`;
+      const segments = segmentsRef.current;
+
+      if (data.type === "thinking") {
+        const lastSeg = segments[segments.length - 1];
+        if (lastSeg && lastSeg.kind === "thinking") {
+          lastSeg.content += data.content;
+        } else {
+          segments.push({ kind: "thinking", content: data.content });
+        }
+      } else if (data.type === "tool_use") {
+        const toolName = (data.toolName || data.content.replace("Using tool: ", "")).trim();
+        segments.push({ kind: "tool_use", toolName, input: "" });
+      } else if (data.type === "tool_input") {
+        const lastToolSeg = [...segments].reverse().find(s => s.kind === "tool_use") as { kind: "tool_use"; toolName: string; input: string } | undefined;
+        if (lastToolSeg) {
+          lastToolSeg.input = data.content;
+        }
+      } else if (data.type === "tool_result") {
+        const toolName = data.toolName || "unknown";
+        segments.push({ kind: "tool_result", toolName, content: data.content });
+      } else if (data.type === "tool_summary") {
+        segments.push({ kind: "text", content: data.content });
+      } else if (data.type === "text") {
+        const lastSeg = segments[segments.length - 1];
+        if (lastSeg && lastSeg.kind === "text") {
+          lastSeg.content += data.content;
+        } else {
+          segments.push({ kind: "text", content: data.content });
+        }
       }
 
-      if (data.type === "text") {
-        if (toolCountsRef.current.size > 0) {
-          toolCountsRef.current = new Map();
+      const plainText = segments
+        .filter(s => s.kind === "text")
+        .map(s => s.content)
+        .join("");
+
+      const segmentsCopy = segments.map(s => ({ ...s })) as ChatSegment[];
+
+      setMessages((prev) => {
+        const existing = prev.find((m) => m.id === streamingId);
+        if (existing) {
+          return prev.map((m) =>
+            m.id === streamingId
+              ? { ...m, content: plainText, segments: segmentsCopy }
+              : m
+          );
         }
-        setStreaming(true);
-        const streamingId = `streaming-project-${projectId}`;
-        setMessages((prev) => {
-          const existing = prev.find((m) => m.id === streamingId);
-          if (existing) {
-            return prev.map((m) =>
-              m.id === streamingId
-                ? { ...m, content: m.content + data.content }
-                : m
-            );
-          }
-          return [
-            ...prev,
-            {
-              id: streamingId,
-              cardId: null,
-              projectId,
-              role: "assistant" as const,
-              content: data.content,
-              column: "project",
-              createdAt: data.timestamp,
-            },
-          ];
-        });
-      }
+        return [
+          ...prev,
+          {
+            id: streamingId,
+            cardId: null,
+            projectId,
+            role: "assistant" as const,
+            content: plainText,
+            column: "project",
+            segments: segmentsCopy,
+            createdAt: data.timestamp,
+          },
+        ];
+      });
     });
 
     socket.on("agent:status", (data) => {
