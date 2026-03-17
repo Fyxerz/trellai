@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { cards, chatMessages } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
-import { submitAnswer } from "@/lib/agents/question-queue";
+import { submitAnswer, getPendingQuestionForCard } from "@/lib/agents/question-queue";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -103,6 +103,17 @@ export async function POST(req: NextRequest) {
 
         const submitted = submitAnswer(questionId, answer);
         return NextResponse.json({ success: true, submitted });
+      }
+
+      case "pending_question": {
+        if (!cardId) {
+          return NextResponse.json(
+            { error: "cardId required" },
+            { status: 400 }
+          );
+        }
+        const pq = getPendingQuestionForCard(cardId);
+        return NextResponse.json({ pendingQuestion: pq });
       }
 
       case "status":

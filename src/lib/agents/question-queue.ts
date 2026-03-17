@@ -8,9 +8,33 @@ interface PendingQuestion {
   resolve: (answer: string) => void;
   reject: (reason: Error) => void;
   timeout: ReturnType<typeof setTimeout>;
+  cardId: string;
+  question: string;
+  options: string[];
 }
 
 const pendingQuestions = new Map<string, PendingQuestion>();
+
+/**
+ * Get the pending question for a specific card, if any.
+ * Used by the API to restore question state when the popup is reopened.
+ */
+export function getPendingQuestionForCard(cardId: string): {
+  questionId: string;
+  question: string;
+  options: string[];
+} | null {
+  for (const [questionId, pending] of pendingQuestions) {
+    if (pending.cardId === cardId) {
+      return {
+        questionId,
+        question: pending.question,
+        options: pending.options,
+      };
+    }
+  }
+  return null;
+}
 
 /** 10-minute timeout for unanswered questions */
 const QUESTION_TIMEOUT_MS = 600_000;
@@ -19,7 +43,10 @@ const QUESTION_TIMEOUT_MS = 600_000;
  * Wait for a user answer to a question. Returns a promise that resolves
  * when submitAnswer() is called with the matching questionId.
  */
-export function waitForAnswer(questionId: string): Promise<string> {
+export function waitForAnswer(
+  questionId: string,
+  metadata?: { cardId: string; question: string; options: string[] }
+): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (pendingQuestions.has(questionId)) {
@@ -28,7 +55,14 @@ export function waitForAnswer(questionId: string): Promise<string> {
       }
     }, QUESTION_TIMEOUT_MS);
 
-    pendingQuestions.set(questionId, { resolve, reject, timeout });
+    pendingQuestions.set(questionId, {
+      resolve,
+      reject,
+      timeout,
+      cardId: metadata?.cardId || "",
+      question: metadata?.question || "",
+      options: metadata?.options || [],
+    });
   });
 }
 

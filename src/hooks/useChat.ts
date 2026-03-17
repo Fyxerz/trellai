@@ -40,12 +40,34 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     });
     const data = await res.json();
     setAgentRunning(data.running);
+    // If agent is running, show streaming indicator so user knows it's active
+    if (data.running) {
+      setStreaming(true);
+    }
+  }, [cardId]);
+
+  const fetchPendingQuestion = useCallback(async () => {
+    if (!cardId) return;
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pending_question", cardId }),
+      });
+      const data = await res.json();
+      if (data.pendingQuestion) {
+        setPendingQuestion(data.pendingQuestion);
+      }
+    } catch {
+      // Ignore errors — question may not exist
+    }
   }, [cardId]);
 
   useEffect(() => {
     if (!cardId) return;
     fetchMessages();
     fetchAgentStatus();
+    fetchPendingQuestion();
 
     // Connect to socket.io sidecar
     const socket = io("http://localhost:3001");
@@ -53,6 +75,9 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
 
     socket.on("connect", () => {
       socket.emit("join:card", cardId);
+      // Re-fetch state on reconnect to catch messages received while disconnected
+      fetchMessages();
+      fetchPendingQuestion();
     });
 
     socket.on("agent:output", (data) => {
@@ -165,8 +190,17 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     socket.on("agent:status", (data) => {
       if (data.cardId === cardId) {
         const running = data.status === "running";
+        const awaitingFeedback = data.status === "awaiting_feedback";
         setAgentRunning(running);
-        if (!running) setStreaming(false);
+        if (!running && !awaitingFeedback) {
+          setStreaming(false);
+          // Re-fetch messages from DB to catch any that arrived while popup was closed
+          fetchMessages();
+        }
+        // If awaiting_feedback, fetch the pending question in case we missed the socket event
+        if (awaitingFeedback) {
+          fetchPendingQuestion();
+        }
       }
     });
 
@@ -206,7 +240,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       socket.emit("leave:card", cardId);
       socket.disconnect();
     };
-  }, [cardId, fetchMessages]);
+  }, [cardId, fetchMessages, fetchAgentStatus, fetchPendingQuestion]);
 
   const sendMessage = async (content: string, column: Column) => {
     if (!cardId) return;

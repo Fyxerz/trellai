@@ -122,6 +122,20 @@ export function createQuestionMcpServer(cardId: string) {
         async (args) => {
           const questionId = uuid();
 
+          // Set card status to awaiting_feedback so the board shows a badge
+          try {
+            db.update(cards)
+              .set({ agentStatus: "awaiting_feedback", updatedAt: new Date().toISOString() })
+              .where(eq(cards.id, cardId))
+              .run();
+            emitToCard(cardId, "agent:status", {
+              cardId,
+              status: "awaiting_feedback",
+            });
+          } catch {
+            // DB/socket may not be available
+          }
+
           // Emit the question to the frontend via socket
           try {
             emitToCard(cardId, "agent:question", {
@@ -136,7 +150,26 @@ export function createQuestionMcpServer(cardId: string) {
 
           // Block until the user answers (or timeout)
           try {
-            const answer = await waitForAnswer(questionId);
+            const answer = await waitForAnswer(questionId, {
+              cardId,
+              question: args.question,
+              options: args.options,
+            });
+
+            // Restore card status to running after answer received
+            try {
+              db.update(cards)
+                .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
+                .where(eq(cards.id, cardId))
+                .run();
+              emitToCard(cardId, "agent:status", {
+                cardId,
+                status: "running",
+              });
+            } catch {
+              // DB/socket may not be available
+            }
+
             return {
               content: [
                 {
