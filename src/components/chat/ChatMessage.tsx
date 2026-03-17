@@ -44,9 +44,10 @@ function formatToolSummary(tools: { name: string; count: number }[]): string {
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  isStreaming?: boolean;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
@@ -66,16 +67,23 @@ export function ChatMessage({ message }: ChatMessageProps) {
         ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/15"
         : "bg-white/10 text-white/70 border border-white/15";
 
+  // Blinking cursor for streaming messages
+  const cursor = isStreaming ? (
+    <span className="inline-block w-[2px] h-[1.1em] bg-violet-400 ml-0.5 align-middle animate-blink" />
+  ) : null;
+
   return (
-    <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"} animate-message-in`}>
       <div
-        className={`max-w-[85%] min-w-0 overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
+        className={`min-w-0 overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed transition-[width] duration-300 ease-out ${
+          isStreaming ? "w-[85%]" : "max-w-[85%]"
+        } ${
           isUser
             ? "bg-gradient-to-r from-violet-500/80 to-indigo-500/80 text-white"
             : isSystem
               ? systemStyle
               : "bg-white/8 text-white/80"
-        }`}
+        } ${isStreaming ? "border border-violet-500/20" : ""}`}
       >
         {!isUser && (
           <div className="flex items-center gap-1.5 mb-1">
@@ -90,6 +98,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               seg.type === "text" ? (
                 <p key={i} className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                   {seg.content}
+                  {i === segments.length - 1 && cursor}
                 </p>
               ) : (
                 <span
@@ -103,7 +112,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
             )}
           </div>
         ) : (
-          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</p>
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            {message.content}
+            {cursor}
+          </p>
         )}
       </div>
     </div>

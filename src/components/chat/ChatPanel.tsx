@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useChat } from "@/hooks/useChat";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -18,11 +18,50 @@ interface ChatPanelProps {
 
 export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMove }: ChatPanelProps) {
   const { messages, agentRunning, streaming, pendingQuestion, sendMessage, confirmMoveToDev, stopAgent, answerQuestion } = useChat(cardId, onAutoMove);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastScrollTime = useRef(0);
+  const scrollRAF = useRef<number | null>(null);
+
+  // Smart scroll: only auto-scroll if user is near the bottom, throttled
+  const smartScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isNearBottom = distanceFromBottom < 150;
+
+    if (!isNearBottom) return;
+
+    const now = Date.now();
+    if (now - lastScrollTime.current < 200) {
+      // Throttle: schedule a scroll at the end of the throttle window
+      if (scrollRAF.current) cancelAnimationFrame(scrollRAF.current);
+      scrollRAF.current = requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+        lastScrollTime.current = Date.now();
+      });
+      return;
+    }
+
+    lastScrollTime.current = now;
+    container.scrollTop = container.scrollHeight;
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    smartScroll();
+  }, [messages, smartScroll]);
+
+  // Always scroll to bottom on first render / when messages load from DB
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [cardId]);
+
+  const streamingId = `streaming-${cardId}`;
 
   const canSend =
     column === "features" ||
@@ -49,7 +88,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
         <div className="space-y-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -79,7 +118,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
               const { question, answer } = parseQA(msg.content);
               return <AnsweredQuestionCard key={msg.id} question={question} answer={answer} />;
             }
-            return <ChatMessage key={msg.id} message={msg} />;
+            return <ChatMessage key={msg.id} message={msg} isStreaming={msg.id === streamingId && streaming} />;
           })}
           {pendingQuestion && (
             <QuestionCard
