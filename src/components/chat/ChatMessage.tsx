@@ -49,10 +49,22 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
-  const isSuccess = isSystem && message.content.includes("successfully");
+
+  const lowerContent = isSystem ? message.content.toLowerCase() : "";
+  const isSuccess = isSystem && lowerContent.includes("successfully");
+  const isError = isSystem && !isSuccess && (lowerContent.startsWith("error") || lowerContent.includes("failed"));
+  const isWarning = isSystem && !isSuccess && !isError && lowerContent.includes("warning");
 
   const hasMarkers = message.content.includes("{{tools:");
   const segments = hasMarkers ? parseContent(message.content) : null;
+
+  const systemStyle = isSuccess
+    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/15"
+    : isError
+      ? "bg-red-500/10 text-red-300 border border-red-500/15"
+      : isWarning
+        ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/15"
+        : "bg-white/10 text-white/70 border border-white/15";
 
   return (
     <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -60,11 +72,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
         className={`max-w-[85%] min-w-0 overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
             ? "bg-gradient-to-r from-violet-500/80 to-indigo-500/80 text-white"
-            : isSuccess
-              ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/15"
-              : isSystem
-                ? "bg-red-500/10 text-red-300 border border-red-500/15"
-                : "bg-white/8 text-white/80"
+            : isSystem
+              ? systemStyle
+              : "bg-white/8 text-white/80"
         }`}
       >
         {!isUser && (
