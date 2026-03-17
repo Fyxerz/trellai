@@ -195,14 +195,14 @@
   animation: shimmer 2s ease-in-out infinite;
 }
 
-/* Attention glow for cards needing input */
-@keyframes attention-pulse {
-  0%, 100% { box-shadow: 0 0 0 1px oklch(0.8 0.18 85 / 30%), 0 0 8px oklch(0.8 0.18 85 / 15%); }
-  50% { box-shadow: 0 0 0 1px oklch(0.8 0.18 85 / 50%), 0 0 16px oklch(0.8 0.18 85 / 25%); }
+/* Question glow for cards awaiting answers (violet/purple) */
+@keyframes question-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px oklch(0.65 0.25 295 / 30%), 0 0 8px oklch(0.65 0.25 295 / 15%); }
+  50% { box-shadow: 0 0 0 1px oklch(0.65 0.25 295 / 50%), 0 0 16px oklch(0.65 0.25 295 / 25%); }
 }
 
-.attention-glow {
-  animation: attention-pulse 2.5s ease-in-out infinite;
+.question-glow {
+  animation: question-pulse 2.5s ease-in-out infinite;
 }
 
 /* Scrollbar styling */

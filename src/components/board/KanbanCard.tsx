@@ -161,8 +161,8 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
                   )}
                   {needsAttention && (
                     <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-amber-400 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-violet-400 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-violet-400" />
                     </span>
                   )}
                   {status.label}

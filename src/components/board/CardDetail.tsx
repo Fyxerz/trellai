@@ -18,7 +18,7 @@ import type { Card, CardType, ChecklistItem } from "@/types";
 const statusBadge: Record<string, { label: string; class: string }> = {
   idle: { label: "Idle", class: "bg-white/10 text-white/50" },
   running: { label: "Running", class: "bg-blue-500/20 text-blue-300" },
-  awaiting_feedback: { label: "Needs Input", class: "bg-amber-500/20 text-amber-300" },
+  awaiting_feedback: { label: "Question", class: "bg-violet-500/20 text-violet-300" },
   ready_for_dev: { label: "Ready for Dev", class: "bg-emerald-500/20 text-emerald-300" },
   dev_complete: { label: "Dev Complete", class: "bg-purple-500/20 text-purple-300" },
   error: { label: "Error", class: "bg-red-500/20 text-red-300" },

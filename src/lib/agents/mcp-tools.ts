@@ -205,6 +205,53 @@ export function createQuestionMcpServer(cardId: string) {
           },
         }
       ),
+      tool(
+        "mark_ready",
+        "Signal that the planning phase is complete and the card is ready for development. Use this when you and the user agree that the spec is finalized and implementation can begin.",
+        {
+          summary: z
+            .string()
+            .describe(
+              "Brief summary of what was planned and is ready for development"
+            ),
+        },
+        async (args) => {
+          try {
+            db.update(cards)
+              .set({
+                agentStatus: "ready_for_dev",
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(cards.id, cardId))
+              .run();
+            emitToCard(cardId, "agent:status", {
+              cardId,
+              status: "ready_for_dev",
+            });
+          } catch {
+            // DB/socket may not be available
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: true,
+                  status: "ready_for_dev",
+                  summary: args.summary,
+                }),
+              },
+            ],
+          };
+        },
+        {
+          annotations: {
+            title: "Mark Ready for Development",
+            readOnlyHint: false,
+          },
+        }
+      ),
     ],
   });
 }

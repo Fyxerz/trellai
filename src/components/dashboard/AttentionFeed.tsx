@@ -18,9 +18,9 @@ const statusConfig: Record<
 > = {
   awaiting_feedback: {
     icon: MessageSquare,
-    color: "text-amber-300",
-    bg: "bg-amber-400/15",
-    label: "Needs Input",
+    color: "text-violet-300",
+    bg: "bg-violet-400/15",
+    label: "Question",
   },
   dev_complete: {
     icon: CheckCircle2,
