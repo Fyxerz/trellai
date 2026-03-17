@@ -51,7 +51,7 @@ export function CreateProjectDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={creating ? () => {} : onOpenChange}>
       <DialogContent className="glass border-white/10 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">New Board</DialogTitle>
@@ -99,7 +99,7 @@ export function CreateProjectDialog({
             disabled={!name || !repoPath || creating}
             onClick={handleCreate}
           >
-            {creating ? "Creating..." : "Create Board"}
+            {creating ? "Creating & analyzing repository..." : "Create Board"}
           </button>
         </div>
       </DialogContent>

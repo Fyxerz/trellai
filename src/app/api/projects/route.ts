@@ -5,6 +5,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
+import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
 
 export async function GET() {
   const allProjects = db.select().from(projects).all();
@@ -40,12 +41,21 @@ export async function POST(req: NextRequest) {
     })
     .run();
 
+  // Generate .claude/ documentation files (non-blocking on failure)
+  let docsGenerated = false;
+  try {
+    const docsResult = await generateProjectDocs(body.repoPath, body.name);
+    docsGenerated = docsResult.created.length > 0;
+  } catch (err) {
+    console.error("Failed to generate project docs:", err);
+  }
+
   const project = db
     .select()
     .from(projects)
     .where(eq(projects.id, id))
     .get();
-  return NextResponse.json(project, { status: 201 });
+  return NextResponse.json({ ...project, docsGenerated }, { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
