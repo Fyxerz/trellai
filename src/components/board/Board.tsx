@@ -17,7 +17,7 @@ import { useBoard } from "@/hooks/useBoard";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { Loader2, ArrowLeft } from "lucide-react";
 
-const COLUMNS: ColumnType[] = ["features", "production", "review", "complete"];
+const COLUMNS: ColumnType[] = ["features", "planning", "production", "review", "complete"];
 
 interface BoardProps {
   projectId: string;

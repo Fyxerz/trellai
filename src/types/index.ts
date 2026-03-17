@@ -1,4 +1,4 @@
-export type Column = "features" | "production" | "review" | "complete";
+export type Column = "features" | "planning" | "production" | "review" | "complete";
 
 export type CardType = "feature" | "fix";
 

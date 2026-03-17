@@ -10,6 +10,7 @@ const columnConfig: Record<
   { label: string; dotColor: string }
 > = {
   features: { label: "Backlog", dotColor: "bg-amber-400" },
+  planning: { label: "Planning", dotColor: "bg-cyan-400" },
   production: { label: "In Development", dotColor: "bg-blue-400" },
   review: { label: "Review", dotColor: "bg-purple-400" },
   complete: { label: "Done", dotColor: "bg-emerald-400" },

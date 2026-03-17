@@ -65,12 +65,14 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
 
   const canSend =
     column === "features" ||
+    column === "planning" ||
     column === "production" ||
     column === "review" ||
     column === "complete";
 
   const placeholders: Record<Column, string> = {
     features: "Chat with Claude to plan this feature...",
+    planning: "Refine and organize this card...",
     production: agentRunning
       ? "Send instructions to the agent..."
       : "Send a message to resume the session...",

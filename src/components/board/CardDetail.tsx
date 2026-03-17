@@ -35,6 +35,7 @@ const typeBadgeConfig: Record<string, { label: string; class: string }> = {
 
 const columnLabel: Record<string, { label: string; class: string }> = {
   features: { label: "Backlog", class: "bg-amber-500/20 text-amber-300" },
+  planning: { label: "Planning", class: "bg-cyan-500/20 text-cyan-300" },
   production: { label: "In Development", class: "bg-blue-500/20 text-blue-300" },
   review: { label: "Review", class: "bg-purple-500/20 text-purple-300" },
   complete: { label: "Done", class: "bg-emerald-500/20 text-emerald-300" },
@@ -218,7 +219,7 @@ export function CardDetail({
         <div className="flex-1 flex min-h-0">
           {/* Left column: description + checklist */}
           <div className="w-2/5 overflow-y-auto border-r border-white/8 px-6 py-4 space-y-4">
-            {card.column === "features" && (
+            {(card.column === "features" || card.column === "planning") && (
               <div>
                 <label className="text-xs font-medium text-white/40 uppercase tracking-wider">
                   Description
