@@ -4,6 +4,7 @@ import { useChat } from "@/hooks/useChat";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { QuestionCard } from "./QuestionCard";
+import { AnsweredQuestionCard, isQAMessage, parseQA } from "./AnsweredQuestionCard";
 import { MessageSquare, Sparkles, Rocket } from "lucide-react";
 import type { Column } from "@/types";
 
@@ -73,9 +74,13 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
               )}
             </div>
           )}
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
-          ))}
+          {messages.map((msg) => {
+            if (isQAMessage(msg.content)) {
+              const { question, answer } = parseQA(msg.content);
+              return <AnsweredQuestionCard key={msg.id} question={question} answer={answer} />;
+            }
+            return <ChatMessage key={msg.id} message={msg} />;
+          })}
           {pendingQuestion && (
             <QuestionCard
               question={pendingQuestion}

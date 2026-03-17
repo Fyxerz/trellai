@@ -72,30 +72,16 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Persist the question and answer as chat messages for history
+        // Persist the question and answer as a single combined Q&A message
         const card2 = db.select().from(cards).where(eq(cards.id, cardId)).get();
         const col = card2?.column || "features";
-        const now = new Date().toISOString();
-
-        if (questionText) {
-          db.insert(chatMessages)
-            .values({
-              id: uuid(),
-              cardId,
-              role: "assistant",
-              content: `**Question:** ${questionText}`,
-              column: col,
-              createdAt: now,
-            })
-            .run();
-        }
 
         db.insert(chatMessages)
           .values({
             id: uuid(),
             cardId,
-            role: "user",
-            content: answer,
+            role: "assistant",
+            content: `{{qa:${questionText || "Unknown question"}||${answer}}}`,
             column: col,
             createdAt: new Date().toISOString(),
           })

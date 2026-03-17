@@ -396,14 +396,14 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
   const answerQuestion = useCallback(async (questionId: string, answer: string, questionText: string) => {
     if (!cardId) return;
 
-    // Optimistic update: show Q&A in messages and clear the question
+    // Optimistic update: show combined Q&A block in messages and clear the question
     setMessages((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         cardId,
-        role: "user",
-        content: answer,
+        role: "assistant",
+        content: `{{qa:${questionText}||${answer}}}`,
         column: "features" as Column,
         createdAt: new Date().toISOString(),
       },
