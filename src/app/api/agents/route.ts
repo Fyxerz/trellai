@@ -116,6 +116,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ pendingQuestion: pq });
       }
 
+      case "streaming_state":
+        return NextResponse.json(orchestrator.getStreamingState(cardId));
+
       case "status":
         return NextResponse.json(orchestrator.getAgentStatus(cardId));
 

@@ -29,6 +29,21 @@ class Orchestrator {
   private processes = new Map<string, ClaudeProcess>();
   private projectProcesses = new Map<string, ClaudeProcess>();
   private queue = new Map<string, string[]>();
+  private streamingBuffers = new Map<string, {
+    text: string;
+    toolCounts: Map<string, number>;
+    column: string;
+  }>();
+
+  getStreamingState(cardId: string) {
+    const buf = this.streamingBuffers.get(cardId);
+    if (!buf) return null;
+    return {
+      text: buf.text,
+      toolCounts: Object.fromEntries(buf.toolCounts),
+      column: buf.column,
+    };
+  }
 
   private log(cardId: string, content: string, column = "production") {
     console.log(`[orchestrator] log(${cardId}): ${content}`);
@@ -288,6 +303,28 @@ class Orchestrator {
         return;
       }
 
+      // Update streaming buffer for state reconstruction on reopen
+      if (data.type === "tool_use") {
+        const buf = this.streamingBuffers.get(cardId) || { text: "", toolCounts: new Map(), column: options.column };
+        const toolName = data.content.replace("Using tool: ", "").trim();
+        buf.toolCounts.set(toolName, (buf.toolCounts.get(toolName) || 0) + 1);
+        buf.column = options.column;
+        this.streamingBuffers.set(cardId, buf);
+      } else if (data.type === "text") {
+        const buf = this.streamingBuffers.get(cardId) || { text: "", toolCounts: new Map(), column: options.column };
+        if (buf.toolCounts.size > 0) {
+          // Group boundary: bake tool marker into text then reset counts
+          const parts = Array.from(buf.toolCounts.entries()).map(([n, c]) => `${n}×${c}`);
+          buf.text += `\n{{tools:${parts.join(",")}}}`;
+          buf.toolCounts = new Map();
+        }
+        buf.text += data.content;
+        buf.column = options.column;
+        this.streamingBuffers.set(cardId, buf);
+      } else if (data.type === "result") {
+        this.streamingBuffers.delete(cardId);
+      }
+
       // Emit via socket for real-time display
       try {
         emitToCard(cardId, "agent:output", {
@@ -346,6 +383,7 @@ class Orchestrator {
     proc.on("exit", (code) => {
       console.log(`[orchestrator] exit(${cardId}): code=${code}`);
       this.processes.delete(cardId);
+      this.streamingBuffers.delete(cardId);
 
       // Determine status based on column context
       let newStatus: string;

@@ -46,6 +46,49 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     }
   }, [cardId]);
 
+  const fetchStreamingState = useCallback(async () => {
+    if (!cardId) return;
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "streaming_state", cardId }),
+      });
+      const data = await res.json();
+      if (!data) return;
+      // Reconstruct the streaming message from the orchestrator's buffer
+      const streamingId = `streaming-${cardId}`;
+      // Restore tool counts
+      const restoredToolCounts = new Map<string, number>(
+        Object.entries(data.toolCounts || {}).map(([k, v]) => [k, v as number])
+      );
+      toolCountsRef.current = restoredToolCounts;
+      // Build content: buffered text + current tool marker (if any tools in progress)
+      let content = data.text || "";
+      if (restoredToolCounts.size > 0) {
+        content += buildToolMarker(restoredToolCounts);
+      }
+      if (!content) return;
+      setStreaming(true);
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== streamingId);
+        return [
+          ...filtered,
+          {
+            id: streamingId,
+            cardId,
+            role: "assistant" as const,
+            content,
+            column: data.column || "production",
+            createdAt: new Date().toISOString(),
+          },
+        ];
+      });
+    } catch {
+      // Ignore errors — streaming state may not exist
+    }
+  }, [cardId]);
+
   const fetchPendingQuestion = useCallback(async () => {
     if (!cardId) return;
     try {
@@ -68,6 +111,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     fetchMessages();
     fetchAgentStatus();
     fetchPendingQuestion();
+    fetchStreamingState();
 
     // Connect to socket.io sidecar
     const socket = io("http://localhost:3001");
@@ -78,6 +122,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       // Re-fetch state on reconnect to catch messages received while disconnected
       fetchMessages();
       fetchPendingQuestion();
+      fetchStreamingState();
     });
 
     socket.on("agent:output", (data) => {
