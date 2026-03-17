@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -22,6 +22,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastScrollTime = useRef(0);
   const scrollRAF = useRef<number | null>(null);
+  const [ready, setReady] = useState(false);
 
   // Smart scroll: only auto-scroll if user is near the bottom, throttled
   const smartScroll = useCallback(() => {
@@ -50,15 +51,24 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
   }, []);
 
   useEffect(() => {
-    smartScroll();
-  }, [messages, smartScroll]);
+    if (ready) smartScroll();
+  }, [messages, smartScroll, ready]);
 
-  // Always scroll to bottom on first render / when messages load from DB
+  // On initial mount / card change: instantly jump to bottom (no animation),
+  // then mark as ready so future messages get smooth behavior
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
+    setReady(false);
+    // Use rAF to ensure messages have rendered before scrolling
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+      // Small delay before enabling animations so initial messages don't animate
+      requestAnimationFrame(() => {
+        setReady(true);
+      });
+    });
   }, [cardId]);
 
   const streamingId = `streaming-${cardId}`;
@@ -90,7 +100,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
 
   return (
     <div className="flex flex-col h-full">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="space-y-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -120,7 +130,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
               const { question, answer } = parseQA(msg.content);
               return <AnsweredQuestionCard key={msg.id} question={question} answer={answer} />;
             }
-            return <ChatMessage key={msg.id} message={msg} isStreaming={msg.id === streamingId && streaming} />;
+            return <ChatMessage key={msg.id} message={msg} isStreaming={msg.id === streamingId && streaming} animate={ready} />;
           })}
           {pendingQuestion && (
             <QuestionCard

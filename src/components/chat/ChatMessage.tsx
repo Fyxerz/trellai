@@ -45,9 +45,10 @@ function formatToolSummary(tools: { name: string; count: number }[]): string {
 interface ChatMessageProps {
   message: ChatMessageType;
   isStreaming?: boolean;
+  animate?: boolean;
 }
 
-export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) {
+export function ChatMessage({ message, isStreaming = false, animate = true }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
@@ -73,7 +74,7 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
   ) : null;
 
   return (
-    <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"} animate-message-in`}>
+    <div className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"} ${animate ? "animate-message-in" : ""}`}>
       <div
         className={`min-w-0 overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed transition-[width] duration-300 ease-out ${
           isStreaming ? "w-[85%]" : "max-w-[85%]"
