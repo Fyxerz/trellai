@@ -10,7 +10,7 @@ const statusBadge: Record<
 > = {
   idle: { label: "Planned", bg: "bg-slate-400/20", text: "text-slate-300" },
   running: { label: "Running", bg: "bg-blue-400/20", text: "text-blue-300" },
-  awaiting_feedback: { label: "Needs Input", bg: "bg-amber-400/20", text: "text-amber-300", glow: true },
+  awaiting_feedback: { label: "Question", bg: "bg-violet-400/20", text: "text-violet-300", glow: true },
   ready_for_dev: { label: "Ready", bg: "bg-emerald-400/20", text: "text-emerald-300" },
   dev_complete: { label: "Dev Complete", bg: "bg-purple-400/20", text: "text-purple-300" },
   error: { label: "Error", bg: "bg-red-400/20", text: "text-red-300" },
@@ -87,7 +87,7 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
               : snapshot.isDragging
               ? "shadow-2xl shadow-black/30 ring-1 ring-white/20 scale-[1.02]"
               : needsAttention
-              ? "attention-glow"
+              ? "question-glow"
               : isReadyForDev
               ? "ring-1 ring-emerald-400/40"
               : isDevComplete
