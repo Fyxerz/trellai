@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import type { Card, CardType, Project, Column, AgentStatus } from "@/types";
+import type { Card, CardType, Project, Column, AgentStatus, TestResults, TestStatus } from "@/types";
 
 export function useBoard(projectId: string) {
   const [project, setProject] = useState<Project | null>(null);
@@ -65,6 +65,17 @@ export function useBoard(projectId: string) {
         prev.map((c) =>
           c.id === data.cardId
             ? { ...c, agentStatus: data.status as AgentStatus, updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+    });
+
+    // Test results from development agent
+    socket.on("card:test-results", (data: { cardId: string; testStatus: TestStatus; testResults: TestResults }) => {
+      setCards((prev) =>
+        prev.map((c) =>
+          c.id === data.cardId
+            ? { ...c, testStatus: data.testStatus, testResults: data.testResults, updatedAt: new Date().toISOString() }
             : c
         )
       );

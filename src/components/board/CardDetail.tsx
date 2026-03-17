@@ -8,12 +8,12 @@ import {
 } from "@/components/ui/dialog";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { DiffViewer } from "@/components/review/DiffViewer";
-import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2 } from "lucide-react";
+import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2, FlaskConical, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 import { Checklist } from "./Checklist";
 import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { FileList } from "@/components/files/FileList";
 import { useFiles } from "@/hooks/useFiles";
-import type { Card, CardType, ChecklistItem } from "@/types";
+import type { Card, CardType, ChecklistItem, TestResults } from "@/types";
 
 const statusBadge: Record<string, { label: string; class: string }> = {
   idle: { label: "Idle", class: "bg-white/10 text-white/50" },
@@ -40,6 +40,74 @@ const columnLabel: Record<string, { label: string; class: string }> = {
   review: { label: "Review", class: "bg-purple-500/20 text-purple-300" },
   complete: { label: "Done", class: "bg-emerald-500/20 text-emerald-300" },
 };
+
+function TestResultsPanel({ results }: { results: TestResults }) {
+  const [expanded, setExpanded] = useState(false);
+  const allPassed = results.failed === 0 && results.passed > 0;
+  const hasFailed = results.failed > 0;
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full group"
+      >
+        <label className="text-xs font-medium text-white/40 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
+          <FlaskConical className="h-3.5 w-3.5" />
+          Tests
+        </label>
+        <div className="flex items-center gap-2">
+          {hasFailed ? (
+            <span className="text-xs font-medium text-red-400">
+              {results.failed} failed
+            </span>
+          ) : allPassed ? (
+            <span className="text-xs font-medium text-emerald-400">
+              All passed
+            </span>
+          ) : null}
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+            hasFailed
+              ? "bg-red-500/20 text-red-300"
+              : allPassed
+              ? "bg-emerald-500/20 text-emerald-300"
+              : "bg-white/10 text-white/50"
+          }`}>
+            {results.passed}/{results.total}
+          </span>
+        </div>
+      </button>
+      {expanded && results.tests.length > 0 && (
+        <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+          {results.tests.map((test, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-lg px-2.5 py-1.5 bg-white/4"
+            >
+              {test.status === "passed" ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              ) : test.status === "failed" ? (
+                <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+              ) : (
+                <MinusCircle className="h-3.5 w-3.5 text-white/30 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0 flex-1">
+                <span className={`text-xs ${test.status === "failed" ? "text-red-300" : test.status === "passed" ? "text-white/70" : "text-white/40"}`}>
+                  {test.name}
+                </span>
+                {test.error && (
+                  <p className="text-[11px] text-red-400/70 mt-0.5 font-mono break-all line-clamp-3">
+                    {test.error}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface CardDetailProps {
   card: Card;
@@ -235,6 +303,11 @@ export function CardDetail({
               </div>
             )}
             <Checklist cardId={card.id} onChangeCount={onRefresh} />
+
+            {/* Test results section */}
+            {card.testStatus && card.testResults && (
+              <TestResultsPanel results={typeof card.testResults === "string" ? JSON.parse(card.testResults) : card.testResults} />
+            )}
 
             {/* Files section */}
             <div>

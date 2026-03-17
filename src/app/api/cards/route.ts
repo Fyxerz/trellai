@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       .all();
     return {
       ...card,
+      testResults: card.testResults ? JSON.parse(card.testResults) : null,
       checklistTotal: items.length,
       checklistChecked: items.filter((i) => i.checked).length,
     };

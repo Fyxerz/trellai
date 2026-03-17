@@ -4,6 +4,22 @@ export type CardType = "feature" | "fix";
 
 export type AgentStatus = "idle" | "running" | "awaiting_feedback" | "ready_for_dev" | "dev_complete" | "error" | "complete" | "merged" | "queued" | "reverted";
 
+export type TestStatus = "passed" | "failed" | "partial" | "no_tests" | null;
+
+export interface TestResult {
+  name: string;
+  status: "passed" | "failed" | "skipped";
+  error?: string;
+}
+
+export interface TestResults {
+  passed: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  tests: TestResult[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -26,6 +42,8 @@ export interface Card {
   claudeSessionId: string | null;
   agentStatus: AgentStatus;
   commitSha: string | null;
+  testStatus: TestStatus;
+  testResults: TestResults | null;
   createdAt: string;
   updatedAt: string;
   checklistTotal?: number;

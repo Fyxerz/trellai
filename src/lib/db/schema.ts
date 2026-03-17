@@ -24,6 +24,8 @@ export const cards = sqliteTable("cards", {
   claudeSessionId: text("claude_session_id"),
   agentStatus: text("agent_status").notNull().default("idle"),
   commitSha: text("commit_sha"),
+  testStatus: text("test_status"),
+  testResults: text("test_results"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

@@ -8,7 +8,7 @@ import { v4 as uuid } from "uuid";
 import { existsSync } from "fs";
 import { emitToCard, emitToProject, emitGlobal } from "@/lib/socket";
 import { copySessionToProject } from "./session-transfer";
-import { createBoardMcpServer, createQuestionMcpServer } from "./mcp-tools";
+import { createBoardMcpServer, createQuestionMcpServer, createDevMcpServer } from "./mcp-tools";
 
 const PLANNING_SYSTEM_PROMPT = `You are helping plan and build a feature. You have READ-ONLY access to the codebase — you can explore files, search code, and run read-only commands, but you cannot edit or create files. Start by discussing requirements with the user. Ask clarifying questions to refine the spec.
 
@@ -210,6 +210,7 @@ class Orchestrator {
         });
       }
     } else if (card.column === "production" && card.worktreePath) {
+      const devMcpMsg1 = createDevMcpServer(cardId);
       if (hasValidSession) {
         db.update(cards)
           .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
@@ -219,6 +220,7 @@ class Orchestrator {
         this.spawnAgent(cardId, card.worktreePath, message, {
           resumeSessionId: card.claudeSessionId!,
           column: "production",
+          mcpServers: { "trellai-dev": devMcpMsg1 },
         });
       } else {
         const sessionId = uuid();
@@ -230,12 +232,14 @@ class Orchestrator {
         this.spawnAgent(cardId, card.worktreePath, message, {
           sessionId,
           column: "production",
+          mcpServers: { "trellai-dev": devMcpMsg1 },
         });
       }
     } else if (card.column === "production" && !card.worktreePath) {
       // Queue mode — agent works directly in the project repo
       const project2 = db.select().from(projects).where(eq(projects.id, card.projectId)).get();
       if (!project2) throw new Error("Project not found");
+      const devMcpMsg2 = createDevMcpServer(cardId);
 
       if (hasValidSession) {
         db.update(cards)
@@ -246,6 +250,7 @@ class Orchestrator {
         this.spawnAgent(cardId, project2.repoPath, message, {
           resumeSessionId: card.claudeSessionId!,
           column: "production",
+          mcpServers: { "trellai-dev": devMcpMsg2 },
         });
       } else {
         const sessionId = uuid();
@@ -257,6 +262,7 @@ class Orchestrator {
         this.spawnAgent(cardId, project2.repoPath, message, {
           sessionId,
           column: "production",
+          mcpServers: { "trellai-dev": devMcpMsg2 },
         });
       }
     } else {
@@ -716,13 +722,17 @@ class Orchestrator {
     const filesContext = this.getFilesContext(card.projectId, cardId);
     const handoffMessage = `You are working directly in the repository at ${project.repoPath} on the current branch (queue mode — no worktree). Implement the feature described below. All changes will be auto-committed when you're done.
 
+IMPORTANT: After implementing the feature, run the project's tests. Then use the report_test_results tool to report which tests passed, failed, or were skipped. This helps track test status on the board.
+
 Card: ${card.title}
 ${card.description ? `Description: ${card.description}` : ""}${planningContext}${filesContext}`;
 
     this.log(cardId, "Agent started in queue mode (no worktree).");
+    const devMcp = createDevMcpServer(cardId);
     this.spawnAgent(cardId, project.repoPath, handoffMessage, {
       sessionId,
       column: "production",
+      mcpServers: { "trellai-dev": devMcp },
     });
 
     try {
@@ -833,13 +843,17 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
         .run();
 
       const filesContextForked = this.getFilesContext(card.projectId, cardId);
-      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Your planning discussion is preserved in this session — proceed to implement the feature.${conflictWarning}${filesContextForked}`;
+      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Your planning discussion is preserved in this session — proceed to implement the feature.${conflictWarning}${filesContextForked}
+
+IMPORTANT: After implementing the feature, run the project's tests. Then use the report_test_results tool to report which tests passed, failed, or were skipped.`;
 
       this.log(cardId, "Session forked to development environment.");
+      const devMcpFork = createDevMcpServer(cardId);
       this.spawnAgent(cardId, worktreePath, handoffMessage, {
         resumeSessionId: planningSessionId,
         forkSession: true,
         column: "production",
+        mcpServers: { "trellai-dev": devMcpFork },
       });
     } else {
       const sessionId = uuid();
@@ -871,12 +885,16 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
       }
 
       const filesContextNew = this.getFilesContext(card.projectId, cardId);
-      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Implement the feature based on the planning discussion below.${conflictWarning}${planningContext}${filesContextNew}`;
+      const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Implement the feature based on the planning discussion below.${conflictWarning}${planningContext}${filesContextNew}
+
+IMPORTANT: After implementing the feature, run the project's tests. Then use the report_test_results tool to report which tests passed, failed, or were skipped.`;
 
       this.log(cardId, "Session transferred to development environment.");
+      const devMcpNew = createDevMcpServer(cardId);
       this.spawnAgent(cardId, worktreePath, handoffMessage, {
         sessionId,
         column: "production",
+        mcpServers: { "trellai-dev": devMcpNew },
       });
     }
 
@@ -1147,13 +1165,17 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
     const queueFilesContext = this.getFilesContext(project.id, nextCardId);
     const handoffMessage = `You are working directly in the repository at ${project.repoPath} on the current branch (queue mode — no worktree). Implement the feature described below. All changes will be auto-committed when you're done.
 
+IMPORTANT: After implementing the feature, run the project's tests. Then use the report_test_results tool to report which tests passed, failed, or were skipped.
+
 Card: ${nextCard.title}
 ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningContext}${queueFilesContext}`;
 
     this.log(nextCardId, "Queue slot available — agent started.");
+    const devMcpQueue = createDevMcpServer(nextCardId);
     this.spawnAgent(nextCardId, project.repoPath, handoffMessage, {
       sessionId,
       column: "production",
+      mcpServers: { "trellai-dev": devMcpQueue },
     });
 
     try {

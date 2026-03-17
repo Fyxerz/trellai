@@ -14,7 +14,10 @@ export async function GET(
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
-  return NextResponse.json(card);
+  return NextResponse.json({
+    ...card,
+    testResults: card.testResults ? JSON.parse(card.testResults) : null,
+  });
 }
 
 export async function PATCH(
@@ -42,7 +45,10 @@ export async function PATCH(
   db.update(cards).set(updateData).where(eq(cards.id, id)).run();
 
   const card = db.select().from(cards).where(eq(cards.id, id)).get();
-  return NextResponse.json(card);
+  return NextResponse.json({
+    ...card,
+    testResults: card?.testResults ? JSON.parse(card.testResults) : null,
+  });
 }
 
 export async function DELETE(

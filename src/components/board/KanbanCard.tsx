@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Calendar, GitBranch, CheckSquare } from "lucide-react";
-import type { Card } from "@/types";
+import { Calendar, GitBranch, CheckSquare, FlaskConical } from "lucide-react";
+import type { Card, TestResults } from "@/types";
 
 const statusBadge: Record<
   string,
@@ -27,6 +27,37 @@ const typeBadge: Record<
   feature: { label: "Feature", bg: "bg-amber-500/25", text: "text-amber-300" },
   fix: { label: "Fix", bg: "bg-rose-500/25", text: "text-rose-300" },
 };
+
+function TestBadge({ status, results }: { status: string; results: TestResults }) {
+  const allPassed = results.failed === 0 && results.passed > 0;
+  const hasFailed = results.failed > 0;
+
+  return (
+    <div className="mt-2.5 flex items-center gap-2">
+      <FlaskConical className={`h-3 w-3 shrink-0 ${hasFailed ? "text-red-400/70" : allPassed ? "text-emerald-400/70" : "text-white/30"}`} />
+      {results.total > 0 && (
+        <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${Math.round((results.passed / results.total) * 100)}%`,
+              background: allPassed
+                ? "rgb(52, 211, 153)"
+                : hasFailed
+                ? "rgb(248, 113, 113)"
+                : "rgb(148, 163, 184)",
+            }}
+          />
+        </div>
+      )}
+      <span className={`text-[11px] ${hasFailed ? "text-red-400/70" : allPassed ? "text-emerald-400/70" : "text-white/30"}`}>
+        {hasFailed
+          ? `${results.failed} fail`
+          : `${results.passed}/${results.total}`}
+      </span>
+    </div>
+  );
+}
 
 interface KanbanCardProps {
   card: Card;
@@ -134,6 +165,11 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
                 {card.checklistChecked}/{card.checklistTotal}
               </span>
             </div>
+          )}
+
+          {/* Test status badge */}
+          {card.testStatus && card.testResults && (
+            <TestBadge status={card.testStatus} results={card.testResults} />
           )}
 
           {/* Progress bar for running agents */}

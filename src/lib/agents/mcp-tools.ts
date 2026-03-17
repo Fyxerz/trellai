@@ -97,6 +97,85 @@ export function createBoardMcpServer(projectId: string) {
 }
 
 /**
+ * Creates an in-process MCP server scoped to a card for development.
+ * Provides the report_test_results tool so agents can report test outcomes.
+ */
+export function createDevMcpServer(cardId: string) {
+  return createSdkMcpServer({
+    name: "trellai-dev",
+    version: "1.0.0",
+    tools: [
+      tool(
+        "report_test_results",
+        "Report the results of running tests. Call this after running the test suite to record which tests passed and which failed. Each test should have a name and status.",
+        {
+          tests: z.array(
+            z.object({
+              name: z.string().describe("Test name or description"),
+              status: z.enum(["passed", "failed", "skipped"]).describe("Test outcome"),
+              error: z.string().optional().describe("Error message if the test failed"),
+            })
+          ).describe("Array of individual test results"),
+        },
+        async (args) => {
+          const passed = args.tests.filter((t) => t.status === "passed").length;
+          const failed = args.tests.filter((t) => t.status === "failed").length;
+          const skipped = args.tests.filter((t) => t.status === "skipped").length;
+          const total = args.tests.length;
+
+          const testStatus = failed > 0 ? "failed" : passed > 0 ? "passed" : "no_tests";
+          const testResults = JSON.stringify({
+            passed,
+            failed,
+            skipped,
+            total,
+            tests: args.tests,
+          });
+
+          db.update(cards)
+            .set({
+              testStatus,
+              testResults,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(cards.id, cardId))
+            .run();
+
+          try {
+            emitToCard(cardId, "card:test-results", {
+              cardId,
+              testStatus,
+              testResults: JSON.parse(testResults),
+            });
+          } catch {
+            // Socket may not be available
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: true,
+                  summary: `${passed} passed, ${failed} failed, ${skipped} skipped out of ${total} tests`,
+                  testStatus,
+                }),
+              },
+            ],
+          };
+        },
+        {
+          annotations: {
+            title: "Report Test Results",
+            readOnlyHint: false,
+          },
+        }
+      ),
+    ],
+  });
+}
+
+/**
  * Creates an in-process MCP server scoped to a card.
  * Provides the ask_question tool so agents can ask structured
  * questions with selectable options (CLI-style interaction).

@@ -118,6 +118,18 @@ try {
   // Column already exists
 }
 
+// Migrate: add test_status and test_results columns to cards
+try {
+  sqlite.exec(`ALTER TABLE cards ADD COLUMN test_status TEXT`);
+} catch {
+  // Column already exists
+}
+try {
+  sqlite.exec(`ALTER TABLE cards ADD COLUMN test_results TEXT`);
+} catch {
+  // Column already exists
+}
+
 // Migrate: add message_type column to chat_messages for verbose agent output
 try {
   sqlite.exec(`ALTER TABLE chat_messages ADD COLUMN message_type TEXT`);
