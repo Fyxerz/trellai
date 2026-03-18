@@ -44,7 +44,7 @@ export async function POST(
     });
   }
 
-  const card = repos.cards.findById(cardId);
+  const card = await repos.cards.findById(cardId);
   if (!card?.worktreePath) {
     return NextResponse.json(
       { error: "No worktree path for this card" },

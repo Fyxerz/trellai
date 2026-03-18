@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { fileId } = await params;
 
-  const file = repos.files.findById(fileId);
+  const file = await repos.files.findById(fileId);
   if (!file) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }

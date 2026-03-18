@@ -35,14 +35,14 @@ export function createBoardMcpServer(projectId: string) {
           const now = new Date().toISOString();
 
           // Calculate next position in features column
-          const existing = repos.cards.findByProjectId(projectId);
+          const existing = await repos.cards.findByProjectId(projectId);
           const featureCards = existing.filter((c) => c.column === "features");
           const maxPos = featureCards.reduce(
             (max, c) => Math.max(max, c.position),
             -1
           );
 
-          repos.cards.create({
+          await repos.cards.create({
               id,
               projectId,
               title: args.title,
@@ -126,7 +126,7 @@ export function createDevMcpServer(cardId: string) {
             tests: args.tests,
           });
 
-          repos.cards.update(cardId, {
+          await repos.cards.update(cardId, {
               testStatus,
               testResults,
               updatedAt: new Date().toISOString(),
@@ -194,7 +194,7 @@ export function createQuestionMcpServer(cardId: string) {
 
           // Set card status to awaiting_feedback so the board shows a badge
           try {
-            repos.cards.update(cardId, { agentStatus: "awaiting_feedback", updatedAt: new Date().toISOString() });
+            await repos.cards.update(cardId, { agentStatus: "awaiting_feedback", updatedAt: new Date().toISOString() });
             emitToCard(cardId, "agent:status", {
               cardId,
               status: "awaiting_feedback",
@@ -225,7 +225,7 @@ export function createQuestionMcpServer(cardId: string) {
 
             // Restore card status to running after answer received
             try {
-              repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
+              await repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
               emitToCard(cardId, "agent:status", {
                 cardId,
                 status: "running",
@@ -281,7 +281,7 @@ export function createQuestionMcpServer(cardId: string) {
         },
         async (args) => {
           try {
-            repos.cards.update(cardId, {
+            await repos.cards.update(cardId, {
                 agentStatus: "ready_for_dev",
                 updatedAt: new Date().toISOString(),
               });

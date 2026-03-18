@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import type { IChecklistItemRepository, ChecklistItemRow } from "../types";
 
 export class SqliteChecklistItemRepository implements IChecklistItemRepository {
-  findByCardId(cardId: string): ChecklistItemRow[] {
+  async findByCardId(cardId: string): Promise<ChecklistItemRow[]> {
     return db
       .select()
       .from(checklistItems)
@@ -13,7 +13,7 @@ export class SqliteChecklistItemRepository implements IChecklistItemRepository {
       .all() as ChecklistItemRow[];
   }
 
-  findById(id: string): ChecklistItemRow | undefined {
+  async findById(id: string): Promise<ChecklistItemRow | undefined> {
     return db
       .select()
       .from(checklistItems)
@@ -21,7 +21,7 @@ export class SqliteChecklistItemRepository implements IChecklistItemRepository {
       .get() as ChecklistItemRow | undefined;
   }
 
-  create(data: ChecklistItemRow): void {
+  async create(data: ChecklistItemRow): Promise<void> {
     db.insert(checklistItems)
       .values({
         id: data.id,
@@ -34,7 +34,7 @@ export class SqliteChecklistItemRepository implements IChecklistItemRepository {
       .run();
   }
 
-  update(id: string, cardId: string, data: Partial<Pick<ChecklistItemRow, "text" | "checked" | "position">>): void {
+  async update(id: string, cardId: string, data: Partial<Pick<ChecklistItemRow, "text" | "checked" | "position">>): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.text !== undefined) updateData.text = data.text;
     if (data.checked !== undefined) updateData.checked = data.checked;
@@ -47,13 +47,13 @@ export class SqliteChecklistItemRepository implements IChecklistItemRepository {
     }
   }
 
-  delete(id: string, cardId: string): void {
+  async delete(id: string, cardId: string): Promise<void> {
     db.delete(checklistItems)
       .where(and(eq(checklistItems.id, id), eq(checklistItems.cardId, cardId)))
       .run();
   }
 
-  deleteByCardId(cardId: string): void {
+  async deleteByCardId(cardId: string): Promise<void> {
     db.delete(checklistItems)
       .where(eq(checklistItems.cardId, cardId))
       .run();

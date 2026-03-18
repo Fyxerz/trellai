@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const cardFiles = repos.files.findByCardId(id);
+  const cardFiles = await repos.files.findByCardId(id);
   return NextResponse.json(cardFiles);
 }
 
@@ -22,7 +22,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const card = repos.cards.findById(id);
+  const card = await repos.cards.findById(id);
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -59,7 +59,7 @@ export async function POST(
       createdAt: new Date().toISOString(),
     };
 
-    repos.files.create(record);
+    await repos.files.create(record);
     created.push(record);
   }
 
@@ -78,7 +78,7 @@ export async function DELETE(
     return NextResponse.json({ error: "fileId is required" }, { status: 400 });
   }
 
-  const file = repos.files.findByIdAndCardId(fileId, id);
+  const file = await repos.files.findByIdAndCardId(fileId, id);
 
   if (!file) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -91,6 +91,6 @@ export async function DELETE(
     // File may already be gone
   }
 
-  repos.files.delete(fileId);
+  await repos.files.delete(fileId);
   return NextResponse.json({ success: true });
 }

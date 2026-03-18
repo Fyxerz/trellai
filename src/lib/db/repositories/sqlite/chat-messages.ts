@@ -4,7 +4,7 @@ import { eq, and, isNull, asc } from "drizzle-orm";
 import type { IChatMessageRepository, ChatMessageRow } from "../types";
 
 export class SqliteChatMessageRepository implements IChatMessageRepository {
-  findByCardId(cardId: string): ChatMessageRow[] {
+  async findByCardId(cardId: string): Promise<ChatMessageRow[]> {
     return db
       .select()
       .from(chatMessages)
@@ -13,7 +13,7 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
       .all() as ChatMessageRow[];
   }
 
-  findByCardIdAndColumn(cardId: string, column: string): ChatMessageRow[] {
+  async findByCardIdAndColumn(cardId: string, column: string): Promise<ChatMessageRow[]> {
     return db
       .select()
       .from(chatMessages)
@@ -21,7 +21,7 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
       .all() as ChatMessageRow[];
   }
 
-  findByProjectId(projectId: string): ChatMessageRow[] {
+  async findByProjectId(projectId: string): Promise<ChatMessageRow[]> {
     return db
       .select()
       .from(chatMessages)
@@ -34,7 +34,7 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
       .all() as ChatMessageRow[];
   }
 
-  create(data: ChatMessageRow): void {
+  async create(data: ChatMessageRow): Promise<void> {
     db.insert(chatMessages)
       .values({
         id: data.id,
@@ -49,13 +49,13 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
       .run();
   }
 
-  deleteByCardId(cardId: string): void {
+  async deleteByCardId(cardId: string): Promise<void> {
     db.delete(chatMessages)
       .where(eq(chatMessages.cardId, cardId))
       .run();
   }
 
-  deleteByProjectId(projectId: string): void {
+  async deleteByProjectId(projectId: string): Promise<void> {
     db.delete(chatMessages)
       .where(eq(chatMessages.projectId, projectId))
       .run();

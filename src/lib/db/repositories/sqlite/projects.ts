@@ -4,15 +4,15 @@ import { eq } from "drizzle-orm";
 import type { IProjectRepository, ProjectRow } from "../types";
 
 export class SqliteProjectRepository implements IProjectRepository {
-  findAll(): ProjectRow[] {
+  async findAll(): Promise<ProjectRow[]> {
     return db.select().from(projects).all() as ProjectRow[];
   }
 
-  findById(id: string): ProjectRow | undefined {
+  async findById(id: string): Promise<ProjectRow | undefined> {
     return db.select().from(projects).where(eq(projects.id, id)).get() as ProjectRow | undefined;
   }
 
-  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): void {
+  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): Promise<void> {
     db.insert(projects)
       .values({
         id: data.id,
@@ -25,7 +25,7 @@ export class SqliteProjectRepository implements IProjectRepository {
       .run();
   }
 
-  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): void {
+  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.mode !== undefined) updateData.mode = data.mode;
@@ -36,7 +36,7 @@ export class SqliteProjectRepository implements IProjectRepository {
     }
   }
 
-  delete(id: string): void {
+  async delete(id: string): Promise<void> {
     db.delete(projects).where(eq(projects.id, id)).run();
   }
 }

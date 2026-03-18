@@ -13,18 +13,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const allCards = repos.cards.findByProjectId(projectId);
+  const allCards = await repos.cards.findByProjectId(projectId);
 
   // Attach checklist counts
-  const enriched = allCards.map((card) => {
-    const items = repos.checklistItems.findByCardId(card.id);
+  const enriched = await Promise.all(allCards.map(async (card) => {
+    const items = await repos.checklistItems.findByCardId(card.id);
     return {
       ...card,
       testResults: card.testResults ? JSON.parse(card.testResults) : null,
       checklistTotal: items.length,
       checklistChecked: items.filter((i) => i.checked).length,
     };
-  });
+  }));
 
   return NextResponse.json(enriched);
 }
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   // Get max position in the target column
-  const existing = repos.cards.findByProjectId(body.projectId);
+  const existing = await repos.cards.findByProjectId(body.projectId);
 
   const columnCards = existing.filter(
     (c) => c.column === (body.column || "features")
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     -1
   );
 
-  repos.cards.create({
+  await repos.cards.create({
     id,
     projectId: body.projectId,
     title: body.title,
@@ -58,6 +58,6 @@ export async function POST(req: NextRequest) {
     updatedAt: now,
   });
 
-  const card = repos.cards.findById(id);
+  const card = await repos.cards.findById(id);
   return NextResponse.json(card, { status: 201 });
 }

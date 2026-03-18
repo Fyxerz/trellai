@@ -4,15 +4,15 @@ import { eq, and, isNull } from "drizzle-orm";
 import type { IFileRepository, FileRow } from "../types";
 
 export class SqliteFileRepository implements IFileRepository {
-  findById(id: string): FileRow | undefined {
+  async findById(id: string): Promise<FileRow | undefined> {
     return db.select().from(files).where(eq(files.id, id)).get() as FileRow | undefined;
   }
 
-  findByCardId(cardId: string): FileRow[] {
+  async findByCardId(cardId: string): Promise<FileRow[]> {
     return db.select().from(files).where(eq(files.cardId, cardId)).all() as FileRow[];
   }
 
-  findByProjectId(projectId: string): FileRow[] {
+  async findByProjectId(projectId: string): Promise<FileRow[]> {
     return db
       .select()
       .from(files)
@@ -20,7 +20,7 @@ export class SqliteFileRepository implements IFileRepository {
       .all() as FileRow[];
   }
 
-  findByIdAndCardId(id: string, cardId: string): FileRow | undefined {
+  async findByIdAndCardId(id: string, cardId: string): Promise<FileRow | undefined> {
     return db
       .select()
       .from(files)
@@ -28,7 +28,7 @@ export class SqliteFileRepository implements IFileRepository {
       .get() as FileRow | undefined;
   }
 
-  findByIdAndProjectId(id: string, projectId: string): FileRow | undefined {
+  async findByIdAndProjectId(id: string, projectId: string): Promise<FileRow | undefined> {
     return db
       .select()
       .from(files)
@@ -36,7 +36,7 @@ export class SqliteFileRepository implements IFileRepository {
       .get() as FileRow | undefined;
   }
 
-  create(data: FileRow): void {
+  async create(data: FileRow): Promise<void> {
     db.insert(files)
       .values({
         id: data.id,
@@ -51,11 +51,11 @@ export class SqliteFileRepository implements IFileRepository {
       .run();
   }
 
-  delete(id: string): void {
+  async delete(id: string): Promise<void> {
     db.delete(files).where(eq(files.id, id)).run();
   }
 
-  deleteByCardId(cardId: string): void {
+  async deleteByCardId(cardId: string): Promise<void> {
     db.delete(files).where(eq(files.cardId, cardId)).run();
   }
 }

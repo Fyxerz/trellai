@@ -1,9 +1,6 @@
 /**
  * Repository factory — returns the correct repository implementation
  * based on the project's storage mode.
- *
- * Phase 1: Always returns SQLite repositories.
- * Phase 2: Will add Supabase repositories and route based on storageMode.
  */
 
 import type { RepositoryContext } from "./types";
@@ -14,10 +11,18 @@ import {
   SqliteChatMessageRepository,
   SqliteFileRepository,
 } from "./sqlite";
+import {
+  SupabaseProjectRepository,
+  SupabaseCardRepository,
+  SupabaseChecklistItemRepository,
+  SupabaseChatMessageRepository,
+  SupabaseFileRepository,
+} from "./supabase";
 
-// ── Singleton SQLite repositories ───────────────────────────────────────────
+// ── Singleton repositories ──────────────────────────────────────────────────
 
 let _sqliteRepos: RepositoryContext | null = null;
+let _supabaseRepos: RepositoryContext | null = null;
 
 function getSqliteRepositories(): RepositoryContext {
   if (!_sqliteRepos) {
@@ -32,10 +37,23 @@ function getSqliteRepositories(): RepositoryContext {
   return _sqliteRepos;
 }
 
+function getSupabaseRepositories(): RepositoryContext {
+  if (!_supabaseRepos) {
+    _supabaseRepos = {
+      projects: new SupabaseProjectRepository(),
+      cards: new SupabaseCardRepository(),
+      checklistItems: new SupabaseChecklistItemRepository(),
+      chatMessages: new SupabaseChatMessageRepository(),
+      files: new SupabaseFileRepository(),
+    };
+  }
+  return _supabaseRepos;
+}
+
 /**
  * Get repository context for a specific storage mode.
  *
- * @param storageMode - "local" for SQLite, "supabase" for Supabase (Phase 2)
+ * @param storageMode - "local" for SQLite, "supabase" for Supabase
  * @returns RepositoryContext with all repository instances
  */
 export function getRepositories(storageMode: string = "local"): RepositoryContext {
@@ -44,8 +62,7 @@ export function getRepositories(storageMode: string = "local"): RepositoryContex
       return getSqliteRepositories();
 
     case "supabase":
-      // Phase 2: Will return Supabase repositories
-      throw new Error("Supabase storage mode is not yet implemented. Coming in Phase 2.");
+      return getSupabaseRepositories();
 
     default:
       return getSqliteRepositories();

@@ -10,12 +10,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const card = repos.cards.findById(id);
+  const card = await repos.cards.findById(id);
   if (!card || (!card.branchName && !card.commitSha)) {
     return NextResponse.json({ diff: "" });
   }
 
-  const project = repos.projects.findById(card.projectId);
+  const project = await repos.projects.findById(card.projectId);
   if (!project) {
     return NextResponse.json({ diff: "" });
   }

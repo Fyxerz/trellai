@@ -3,6 +3,9 @@
  *
  * These abstract all database access so we can swap between
  * SQLite (local/private boards) and Supabase (public/shared boards).
+ *
+ * All methods return Promises for async compatibility with Supabase.
+ * SQLite implementations wrap their sync results automatically via async.
  */
 
 // ── Row types ───────────────────────────────────────────────────────────────
@@ -70,23 +73,23 @@ export interface FileRow {
 // ── Repository interfaces ───────────────────────────────────────────────────
 
 export interface IProjectRepository {
-  findAll(): ProjectRow[];
-  findById(id: string): ProjectRow | undefined;
-  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): void;
-  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): void;
-  delete(id: string): void;
+  findAll(): Promise<ProjectRow[]>;
+  findById(id: string): Promise<ProjectRow | undefined>;
+  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): Promise<void>;
+  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export interface ICardRepository {
-  findAll(): CardRow[];
-  findById(id: string): CardRow | undefined;
-  findByProjectId(projectId: string): CardRow[];
+  findAll(): Promise<CardRow[]>;
+  findById(id: string): Promise<CardRow | undefined>;
+  findByProjectId(projectId: string): Promise<CardRow[]>;
   findByConditions(conditions: {
     projectId?: string;
     column?: string | string[];
     agentStatus?: string;
     notId?: string;
-  }): CardRow[];
+  }): Promise<CardRow[]>;
   create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
     branchName?: string | null;
     worktreePath?: string | null;
@@ -94,38 +97,38 @@ export interface ICardRepository {
     commitSha?: string | null;
     testStatus?: string | null;
     testResults?: string | null;
-  }): void;
-  update(id: string, data: Partial<Omit<CardRow, "id">>): void;
-  delete(id: string): void;
+  }): Promise<void>;
+  update(id: string, data: Partial<Omit<CardRow, "id">>): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export interface IChecklistItemRepository {
-  findByCardId(cardId: string): ChecklistItemRow[];
-  findById(id: string): ChecklistItemRow | undefined;
-  create(data: ChecklistItemRow): void;
-  update(id: string, cardId: string, data: Partial<Pick<ChecklistItemRow, "text" | "checked" | "position">>): void;
-  delete(id: string, cardId: string): void;
-  deleteByCardId(cardId: string): void;
+  findByCardId(cardId: string): Promise<ChecklistItemRow[]>;
+  findById(id: string): Promise<ChecklistItemRow | undefined>;
+  create(data: ChecklistItemRow): Promise<void>;
+  update(id: string, cardId: string, data: Partial<Pick<ChecklistItemRow, "text" | "checked" | "position">>): Promise<void>;
+  delete(id: string, cardId: string): Promise<void>;
+  deleteByCardId(cardId: string): Promise<void>;
 }
 
 export interface IChatMessageRepository {
-  findByCardId(cardId: string): ChatMessageRow[];
-  findByCardIdAndColumn(cardId: string, column: string): ChatMessageRow[];
-  findByProjectId(projectId: string): ChatMessageRow[];
-  create(data: ChatMessageRow): void;
-  deleteByCardId(cardId: string): void;
-  deleteByProjectId(projectId: string): void;
+  findByCardId(cardId: string): Promise<ChatMessageRow[]>;
+  findByCardIdAndColumn(cardId: string, column: string): Promise<ChatMessageRow[]>;
+  findByProjectId(projectId: string): Promise<ChatMessageRow[]>;
+  create(data: ChatMessageRow): Promise<void>;
+  deleteByCardId(cardId: string): Promise<void>;
+  deleteByProjectId(projectId: string): Promise<void>;
 }
 
 export interface IFileRepository {
-  findById(id: string): FileRow | undefined;
-  findByCardId(cardId: string): FileRow[];
-  findByProjectId(projectId: string): FileRow[];
-  findByIdAndCardId(id: string, cardId: string): FileRow | undefined;
-  findByIdAndProjectId(id: string, projectId: string): FileRow | undefined;
-  create(data: FileRow): void;
-  delete(id: string): void;
-  deleteByCardId(cardId: string): void;
+  findById(id: string): Promise<FileRow | undefined>;
+  findByCardId(cardId: string): Promise<FileRow[]>;
+  findByProjectId(projectId: string): Promise<FileRow[]>;
+  findByIdAndCardId(id: string, cardId: string): Promise<FileRow | undefined>;
+  findByIdAndProjectId(id: string, projectId: string): Promise<FileRow | undefined>;
+  create(data: FileRow): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByCardId(cardId: string): Promise<void>;
 }
 
 // ── Combined repository context ─────────────────────────────────────────────

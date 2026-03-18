@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     // Validate card exists for actions that need it
     if (cardId && ["send_message", "save_message"].includes(action)) {
-      const card = repos.cards.findById(cardId);
+      const card = await repos.cards.findById(cardId);
       if (!card) {
         return NextResponse.json(
           { error: "Card not found. It may have been deleted." },
@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case "send_message": {
         // Persist the user message immediately before calling the orchestrator.
-        const card = repos.cards.findById(cardId);
-        repos.chatMessages.create({
+        const card = await repos.cards.findById(cardId);
+        await repos.chatMessages.create({
           id: uuid(),
           cardId,
           projectId: null,
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
 
       case "save_message":
-        repos.chatMessages.create({
+        await repos.chatMessages.create({
           id: uuid(),
           cardId,
           projectId: null,
@@ -71,10 +71,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Persist the question and answer as a single combined Q&A message
-        const card2 = repos.cards.findById(cardId);
+        const card2 = await repos.cards.findById(cardId);
         const col = card2?.column || "features";
 
-        repos.chatMessages.create({
+        await repos.chatMessages.create({
           id: uuid(),
           cardId,
           projectId: null,
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(orchestrator.getStreamingState(cardId));
 
       case "status":
-        return NextResponse.json(orchestrator.getAgentStatus(cardId));
+        return NextResponse.json(await orchestrator.getAgentStatus(cardId));
 
       default:
         return NextResponse.json(
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const messages = repos.chatMessages.findByCardId(cardId);
+  const messages = await repos.chatMessages.findByCardId(cardId);
 
   return NextResponse.json(messages);
 }

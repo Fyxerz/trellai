@@ -12,7 +12,7 @@ export async function POST(
 
   try {
     await orchestrator.revertCard(id);
-    const updatedCard = repos.cards.findById(id);
+    const updatedCard = await repos.cards.findById(id);
     return NextResponse.json(updatedCard);
   } catch (error) {
     return NextResponse.json(

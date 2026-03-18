@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const messages = repos.chatMessages.findByProjectId(projectId);
+  const messages = await repos.chatMessages.findByProjectId(projectId);
 
   return NextResponse.json(messages);
 }

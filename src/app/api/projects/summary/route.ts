@@ -4,8 +4,8 @@ import { getLocalRepositories } from "@/lib/db/repositories";
 const repos = getLocalRepositories();
 
 export async function GET() {
-  const allProjects = repos.projects.findAll();
-  const allCards = repos.cards.findAll();
+  const allProjects = await repos.projects.findAll();
+  const allCards = await repos.cards.findAll();
 
   const attentionStatuses = new Set(["awaiting_feedback", "dev_complete", "error"]);
 

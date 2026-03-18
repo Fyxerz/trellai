@@ -8,7 +8,7 @@ import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
 const repos = getLocalRepositories();
 
 export async function GET() {
-  const allProjects = repos.projects.findAll();
+  const allProjects = await repos.projects.findAll();
   return NextResponse.json(allProjects);
 }
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const id = uuid();
   const now = new Date().toISOString();
 
-  repos.projects.create({
+  await repos.projects.create({
     id,
     name: body.name,
     repoPath: body.repoPath,
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     console.error("Failed to generate project docs:", err);
   }
 
-  const project = repos.projects.findById(id);
+  const project = await repos.projects.findById(id);
   return NextResponse.json({ ...project, docsGenerated }, { status: 201 });
 }
 
@@ -63,7 +63,7 @@ export async function PATCH(req: NextRequest) {
 
   // Mode toggle guard: reject if cards are in production or review
   if (mode && (mode === "worktree" || mode === "queue")) {
-    const activeCards = repos.cards.findByConditions({
+    const activeCards = await repos.cards.findByConditions({
       projectId: id,
       column: ["production", "review"],
     });
@@ -75,13 +75,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    repos.projects.update(id, { mode });
+    await repos.projects.update(id, { mode });
   }
 
   if (name) {
-    repos.projects.update(id, { name });
+    await repos.projects.update(id, { name });
   }
 
-  const project = repos.projects.findById(id);
+  const project = await repos.projects.findById(id);
   return NextResponse.json(project);
 }

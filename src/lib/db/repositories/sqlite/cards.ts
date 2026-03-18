@@ -4,24 +4,24 @@ import { eq, and, ne, inArray } from "drizzle-orm";
 import type { ICardRepository, CardRow } from "../types";
 
 export class SqliteCardRepository implements ICardRepository {
-  findAll(): CardRow[] {
+  async findAll(): Promise<CardRow[]> {
     return db.select().from(cards).all() as CardRow[];
   }
 
-  findById(id: string): CardRow | undefined {
+  async findById(id: string): Promise<CardRow | undefined> {
     return db.select().from(cards).where(eq(cards.id, id)).get() as CardRow | undefined;
   }
 
-  findByProjectId(projectId: string): CardRow[] {
+  async findByProjectId(projectId: string): Promise<CardRow[]> {
     return db.select().from(cards).where(eq(cards.projectId, projectId)).all() as CardRow[];
   }
 
-  findByConditions(conditions: {
+  async findByConditions(conditions: {
     projectId?: string;
     column?: string | string[];
     agentStatus?: string;
     notId?: string;
-  }): CardRow[] {
+  }): Promise<CardRow[]> {
     const clauses = [];
     if (conditions.projectId) clauses.push(eq(cards.projectId, conditions.projectId));
     if (conditions.column) {
@@ -39,14 +39,14 @@ export class SqliteCardRepository implements ICardRepository {
     return db.select().from(cards).where(and(...clauses)).all() as CardRow[];
   }
 
-  create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
+  async create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
     branchName?: string | null;
     worktreePath?: string | null;
     claudeSessionId?: string | null;
     commitSha?: string | null;
     testStatus?: string | null;
     testResults?: string | null;
-  }): void {
+  }): Promise<void> {
     db.insert(cards)
       .values({
         id: data.id,
@@ -69,13 +69,13 @@ export class SqliteCardRepository implements ICardRepository {
       .run();
   }
 
-  update(id: string, data: Partial<Omit<CardRow, "id">>): void {
+  async update(id: string, data: Partial<Omit<CardRow, "id">>): Promise<void> {
     if (Object.keys(data).length > 0) {
       db.update(cards).set(data).where(eq(cards.id, id)).run();
     }
   }
 
-  delete(id: string): void {
+  async delete(id: string): Promise<void> {
     db.delete(cards).where(eq(cards.id, id)).run();
   }
 }

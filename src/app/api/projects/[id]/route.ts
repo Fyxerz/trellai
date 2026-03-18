@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = repos.projects.findById(id);
+  const project = await repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -21,13 +21,13 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const project = repos.projects.findById(id);
+  const project = await repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
   // Check for running agents
-  const projectCards = repos.cards.findByProjectId(id);
+  const projectCards = await repos.cards.findByProjectId(id);
 
   const runningCards = projectCards.filter(
     (c) => c.agentStatus === "running" || c.agentStatus === "queued"
@@ -47,16 +47,16 @@ export async function DELETE(
   // Delete all cards for this project (cascade handles checklist + chat via FK)
   for (const card of projectCards) {
     // Explicitly delete related records for safety
-    repos.checklistItems.deleteByCardId(card.id);
-    repos.chatMessages.deleteByCardId(card.id);
-    repos.cards.delete(card.id);
+    await repos.checklistItems.deleteByCardId(card.id);
+    await repos.chatMessages.deleteByCardId(card.id);
+    await repos.cards.delete(card.id);
   }
 
   // Delete project-level chat messages
-  repos.chatMessages.deleteByProjectId(id);
+  await repos.chatMessages.deleteByProjectId(id);
 
   // Delete project
-  repos.projects.delete(id);
+  await repos.projects.delete(id);
 
   return NextResponse.json({ success: true });
 }

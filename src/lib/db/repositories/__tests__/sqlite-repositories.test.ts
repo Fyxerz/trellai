@@ -7,6 +7,11 @@ import { SqliteCardRepository } from "../sqlite/cards";
 import { SqliteChecklistItemRepository } from "../sqlite/checklist-items";
 import { SqliteChatMessageRepository } from "../sqlite/chat-messages";
 import { SqliteFileRepository } from "../sqlite/files";
+import { SupabaseProjectRepository } from "../supabase/projects";
+import { SupabaseCardRepository } from "../supabase/cards";
+import { SupabaseChecklistItemRepository } from "../supabase/checklist-items";
+import { SupabaseChatMessageRepository } from "../supabase/chat-messages";
+import { SupabaseFileRepository } from "../supabase/files";
 import { getLocalRepositories, getRepositories } from "../index";
 import type { RepositoryContext } from "../types";
 
@@ -14,8 +19,8 @@ import type { RepositoryContext } from "../types";
 // since the SQLite repos depend on the singleton `db` from @/lib/db
 
 describe("Repository Factory", () => {
-  it("getLocalRepositories returns a RepositoryContext", () => {
-    const repos = getLocalRepositories();
+  it("getLocalRepositories returns a RepositoryContext", async () => {
+    const repos = await getLocalRepositories();
     expect(repos).toBeDefined();
     expect(repos.projects).toBeInstanceOf(SqliteProjectRepository);
     expect(repos.cards).toBeInstanceOf(SqliteCardRepository);
@@ -24,20 +29,24 @@ describe("Repository Factory", () => {
     expect(repos.files).toBeInstanceOf(SqliteFileRepository);
   });
 
-  it("getRepositories('local') returns SQLite repos", () => {
-    const repos = getRepositories("local");
+  it("getRepositories('local') returns SQLite repos", async () => {
+    const repos = await getRepositories("local");
     expect(repos.projects).toBeInstanceOf(SqliteProjectRepository);
   });
 
-  it("getRepositories('supabase') throws not-yet-implemented error", () => {
-    expect(() => getRepositories("supabase")).toThrow(
-      "Supabase storage mode is not yet implemented"
-    );
+  it("getRepositories('supabase') returns a valid RepositoryContext", async () => {
+    const repos = await getRepositories("supabase");
+    expect(repos).toBeDefined();
+    expect(repos.projects).toBeInstanceOf(SupabaseProjectRepository);
+    expect(repos.cards).toBeInstanceOf(SupabaseCardRepository);
+    expect(repos.checklistItems).toBeInstanceOf(SupabaseChecklistItemRepository);
+    expect(repos.chatMessages).toBeInstanceOf(SupabaseChatMessageRepository);
+    expect(repos.files).toBeInstanceOf(SupabaseFileRepository);
   });
 
-  it("getLocalRepositories returns same singleton", () => {
-    const repos1 = getLocalRepositories();
-    const repos2 = getLocalRepositories();
+  it("getLocalRepositories returns same singleton", async () => {
+    const repos1 = await getLocalRepositories();
+    const repos2 = await getLocalRepositories();
     expect(repos1).toBe(repos2);
   });
 });
@@ -45,24 +54,24 @@ describe("Repository Factory", () => {
 describe("SQLite Repository Interfaces", () => {
   let repos: RepositoryContext;
 
-  beforeEach(() => {
-    repos = getLocalRepositories();
+  beforeEach(async () => {
+    repos = await getLocalRepositories();
   });
 
   describe("IProjectRepository", () => {
     const testProjectId = `test-proj-${Date.now()}`;
 
-    afterEach(() => {
+    afterEach(async () => {
       // Cleanup
       try {
-        repos.projects.delete(testProjectId);
+        await repos.projects.delete(testProjectId);
       } catch {
         // May not exist
       }
     });
 
-    it("create and findById", () => {
-      repos.projects.create({
+    it("create and findById", async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "Test Project",
         repoPath: "/tmp/test-repo",
@@ -70,7 +79,7 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const project = repos.projects.findById(testProjectId);
+      const project = await repos.projects.findById(testProjectId);
       expect(project).toBeDefined();
       expect(project!.name).toBe("Test Project");
       expect(project!.repoPath).toBe("/tmp/test-repo");
@@ -79,8 +88,8 @@ describe("SQLite Repository Interfaces", () => {
       expect(project!.chatSessionId).toBeNull();
     });
 
-    it("findAll includes the created project", () => {
-      repos.projects.create({
+    it("findAll includes the created project", async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "Test Project",
         repoPath: "/tmp/test-repo",
@@ -88,12 +97,12 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const allProjects = repos.projects.findAll();
+      const allProjects = await repos.projects.findAll();
       expect(allProjects.some((p) => p.id === testProjectId)).toBe(true);
     });
 
-    it("update changes name", () => {
-      repos.projects.create({
+    it("update changes name", async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "Original",
         repoPath: "/tmp/test-repo",
@@ -101,13 +110,13 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      repos.projects.update(testProjectId, { name: "Updated" });
-      const project = repos.projects.findById(testProjectId);
+      await repos.projects.update(testProjectId, { name: "Updated" });
+      const project = await repos.projects.findById(testProjectId);
       expect(project!.name).toBe("Updated");
     });
 
-    it("update changes storageMode", () => {
-      repos.projects.create({
+    it("update changes storageMode", async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "Test",
         repoPath: "/tmp/test-repo",
@@ -115,13 +124,13 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      repos.projects.update(testProjectId, { storageMode: "supabase" });
-      const project = repos.projects.findById(testProjectId);
+      await repos.projects.update(testProjectId, { storageMode: "supabase" });
+      const project = await repos.projects.findById(testProjectId);
       expect(project!.storageMode).toBe("supabase");
     });
 
-    it("delete removes the project", () => {
-      repos.projects.create({
+    it("delete removes the project", async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "To Delete",
         repoPath: "/tmp/test-repo",
@@ -129,8 +138,8 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      repos.projects.delete(testProjectId);
-      const project = repos.projects.findById(testProjectId);
+      await repos.projects.delete(testProjectId);
+      const project = await repos.projects.findById(testProjectId);
       expect(project).toBeUndefined();
     });
   });
@@ -139,8 +148,8 @@ describe("SQLite Repository Interfaces", () => {
     const testProjectId = `test-proj-card-${Date.now()}`;
     const testCardId = `test-card-${Date.now()}`;
 
-    beforeEach(() => {
-      repos.projects.create({
+    beforeEach(async () => {
+      await repos.projects.create({
         id: testProjectId,
         name: "Card Test Project",
         repoPath: "/tmp/test-repo",
@@ -149,18 +158,18 @@ describe("SQLite Repository Interfaces", () => {
       });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
       try {
-        repos.cards.delete(testCardId);
+        await repos.cards.delete(testCardId);
       } catch { /* */ }
       try {
-        repos.projects.delete(testProjectId);
+        await repos.projects.delete(testProjectId);
       } catch { /* */ }
     });
 
-    it("create and findById", () => {
+    it("create and findById", async () => {
       const now = new Date().toISOString();
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "Test Card",
@@ -173,16 +182,16 @@ describe("SQLite Repository Interfaces", () => {
         updatedAt: now,
       });
 
-      const card = repos.cards.findById(testCardId);
+      const card = await repos.cards.findById(testCardId);
       expect(card).toBeDefined();
       expect(card!.title).toBe("Test Card");
       expect(card!.column).toBe("features");
       expect(card!.agentStatus).toBe("idle");
     });
 
-    it("findByProjectId returns cards for project", () => {
+    it("findByProjectId returns cards for project", async () => {
       const now = new Date().toISOString();
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "Test Card",
@@ -195,14 +204,14 @@ describe("SQLite Repository Interfaces", () => {
         updatedAt: now,
       });
 
-      const cards = repos.cards.findByProjectId(testProjectId);
+      const cards = await repos.cards.findByProjectId(testProjectId);
       expect(cards.length).toBeGreaterThanOrEqual(1);
       expect(cards.some((c) => c.id === testCardId)).toBe(true);
     });
 
-    it("findByConditions filters correctly", () => {
+    it("findByConditions filters correctly", async () => {
       const now = new Date().toISOString();
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "Production Card",
@@ -215,23 +224,23 @@ describe("SQLite Repository Interfaces", () => {
         updatedAt: now,
       });
 
-      const running = repos.cards.findByConditions({
+      const running = await repos.cards.findByConditions({
         projectId: testProjectId,
         column: "production",
         agentStatus: "running",
       });
       expect(running.some((c) => c.id === testCardId)).toBe(true);
 
-      const queued = repos.cards.findByConditions({
+      const queued = await repos.cards.findByConditions({
         projectId: testProjectId,
         agentStatus: "queued",
       });
       expect(queued.some((c) => c.id === testCardId)).toBe(false);
     });
 
-    it("findByConditions with array column filter", () => {
+    it("findByConditions with array column filter", async () => {
       const now = new Date().toISOString();
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "Review Card",
@@ -244,16 +253,16 @@ describe("SQLite Repository Interfaces", () => {
         updatedAt: now,
       });
 
-      const found = repos.cards.findByConditions({
+      const found = await repos.cards.findByConditions({
         projectId: testProjectId,
         column: ["production", "review"],
       });
       expect(found.some((c) => c.id === testCardId)).toBe(true);
     });
 
-    it("update modifies card fields", () => {
+    it("update modifies card fields", async () => {
       const now = new Date().toISOString();
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "Original",
@@ -266,13 +275,13 @@ describe("SQLite Repository Interfaces", () => {
         updatedAt: now,
       });
 
-      repos.cards.update(testCardId, {
+      await repos.cards.update(testCardId, {
         title: "Updated",
         column: "production",
         agentStatus: "running",
       });
 
-      const card = repos.cards.findById(testCardId);
+      const card = await repos.cards.findById(testCardId);
       expect(card!.title).toBe("Updated");
       expect(card!.column).toBe("production");
       expect(card!.agentStatus).toBe("running");
@@ -284,16 +293,16 @@ describe("SQLite Repository Interfaces", () => {
     const testCardId = `test-card-cl-${Date.now()}`;
     const testItemId = `test-item-${Date.now()}`;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const now = new Date().toISOString();
-      repos.projects.create({
+      await repos.projects.create({
         id: testProjectId,
         name: "CL Test",
         repoPath: "/tmp/test",
         mode: "worktree",
         createdAt: now,
       });
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "CL Card",
@@ -307,14 +316,14 @@ describe("SQLite Repository Interfaces", () => {
       });
     });
 
-    afterEach(() => {
-      try { repos.checklistItems.delete(testItemId, testCardId); } catch { /* */ }
-      try { repos.cards.delete(testCardId); } catch { /* */ }
-      try { repos.projects.delete(testProjectId); } catch { /* */ }
+    afterEach(async () => {
+      try { await repos.checklistItems.delete(testItemId, testCardId); } catch { /* */ }
+      try { await repos.cards.delete(testCardId); } catch { /* */ }
+      try { await repos.projects.delete(testProjectId); } catch { /* */ }
     });
 
-    it("create and findByCardId", () => {
-      repos.checklistItems.create({
+    it("create and findByCardId", async () => {
+      await repos.checklistItems.create({
         id: testItemId,
         cardId: testCardId,
         text: "Test item",
@@ -323,14 +332,14 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const items = repos.checklistItems.findByCardId(testCardId);
+      const items = await repos.checklistItems.findByCardId(testCardId);
       expect(items.length).toBe(1);
       expect(items[0].text).toBe("Test item");
       expect(items[0].checked).toBe(false);
     });
 
-    it("update toggles checked", () => {
-      repos.checklistItems.create({
+    it("update toggles checked", async () => {
+      await repos.checklistItems.create({
         id: testItemId,
         cardId: testCardId,
         text: "Toggle me",
@@ -339,8 +348,8 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      repos.checklistItems.update(testItemId, testCardId, { checked: true });
-      const item = repos.checklistItems.findById(testItemId);
+      await repos.checklistItems.update(testItemId, testCardId, { checked: true });
+      const item = await repos.checklistItems.findById(testItemId);
       expect(item!.checked).toBe(true);
     });
   });
@@ -350,16 +359,16 @@ describe("SQLite Repository Interfaces", () => {
     const testCardId = `test-card-cm-${Date.now()}`;
     const testMsgId = `test-msg-${Date.now()}`;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const now = new Date().toISOString();
-      repos.projects.create({
+      await repos.projects.create({
         id: testProjectId,
         name: "CM Test",
         repoPath: "/tmp/test",
         mode: "worktree",
         createdAt: now,
       });
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "CM Card",
@@ -373,15 +382,15 @@ describe("SQLite Repository Interfaces", () => {
       });
     });
 
-    afterEach(() => {
-      try { repos.chatMessages.deleteByCardId(testCardId); } catch { /* */ }
-      try { repos.chatMessages.deleteByProjectId(testProjectId); } catch { /* */ }
-      try { repos.cards.delete(testCardId); } catch { /* */ }
-      try { repos.projects.delete(testProjectId); } catch { /* */ }
+    afterEach(async () => {
+      try { await repos.chatMessages.deleteByCardId(testCardId); } catch { /* */ }
+      try { await repos.chatMessages.deleteByProjectId(testProjectId); } catch { /* */ }
+      try { await repos.cards.delete(testCardId); } catch { /* */ }
+      try { await repos.projects.delete(testProjectId); } catch { /* */ }
     });
 
-    it("create and findByCardId", () => {
-      repos.chatMessages.create({
+    it("create and findByCardId", async () => {
+      await repos.chatMessages.create({
         id: testMsgId,
         cardId: testCardId,
         projectId: null,
@@ -392,13 +401,13 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const messages = repos.chatMessages.findByCardId(testCardId);
+      const messages = await repos.chatMessages.findByCardId(testCardId);
       expect(messages.length).toBe(1);
       expect(messages[0].content).toBe("Hello");
     });
 
-    it("findByCardIdAndColumn filters by column", () => {
-      repos.chatMessages.create({
+    it("findByCardIdAndColumn filters by column", async () => {
+      await repos.chatMessages.create({
         id: testMsgId,
         cardId: testCardId,
         projectId: null,
@@ -409,15 +418,15 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const features = repos.chatMessages.findByCardIdAndColumn(testCardId, "features");
+      const features = await repos.chatMessages.findByCardIdAndColumn(testCardId, "features");
       expect(features.length).toBe(1);
 
-      const production = repos.chatMessages.findByCardIdAndColumn(testCardId, "production");
+      const production = await repos.chatMessages.findByCardIdAndColumn(testCardId, "production");
       expect(production.length).toBe(0);
     });
 
-    it("findByProjectId returns project-level messages", () => {
-      repos.chatMessages.create({
+    it("findByProjectId returns project-level messages", async () => {
+      await repos.chatMessages.create({
         id: testMsgId,
         cardId: null,
         projectId: testProjectId,
@@ -428,7 +437,7 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const messages = repos.chatMessages.findByProjectId(testProjectId);
+      const messages = await repos.chatMessages.findByProjectId(testProjectId);
       expect(messages.length).toBe(1);
       expect(messages[0].content).toBe("Project message");
     });
@@ -439,16 +448,16 @@ describe("SQLite Repository Interfaces", () => {
     const testCardId = `test-card-f-${Date.now()}`;
     const testFileId = `test-file-${Date.now()}`;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const now = new Date().toISOString();
-      repos.projects.create({
+      await repos.projects.create({
         id: testProjectId,
         name: "File Test",
         repoPath: "/tmp/test",
         mode: "worktree",
         createdAt: now,
       });
-      repos.cards.create({
+      await repos.cards.create({
         id: testCardId,
         projectId: testProjectId,
         title: "File Card",
@@ -462,14 +471,14 @@ describe("SQLite Repository Interfaces", () => {
       });
     });
 
-    afterEach(() => {
-      try { repos.files.delete(testFileId); } catch { /* */ }
-      try { repos.cards.delete(testCardId); } catch { /* */ }
-      try { repos.projects.delete(testProjectId); } catch { /* */ }
+    afterEach(async () => {
+      try { await repos.files.delete(testFileId); } catch { /* */ }
+      try { await repos.cards.delete(testCardId); } catch { /* */ }
+      try { await repos.projects.delete(testProjectId); } catch { /* */ }
     });
 
-    it("create and findById", () => {
-      repos.files.create({
+    it("create and findById", async () => {
+      await repos.files.create({
         id: testFileId,
         projectId: testProjectId,
         cardId: testCardId,
@@ -480,15 +489,15 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const file = repos.files.findById(testFileId);
+      const file = await repos.files.findById(testFileId);
       expect(file).toBeDefined();
       expect(file!.filename).toBe("test.txt");
     });
 
-    it("findByProjectId returns project-level files only", () => {
+    it("findByProjectId returns project-level files only", async () => {
       // Create a project-level file (no card)
       const projectFileId = `test-pfile-${Date.now()}`;
-      repos.files.create({
+      await repos.files.create({
         id: projectFileId,
         projectId: testProjectId,
         cardId: null,
@@ -500,7 +509,7 @@ describe("SQLite Repository Interfaces", () => {
       });
 
       // Create a card-level file
-      repos.files.create({
+      await repos.files.create({
         id: testFileId,
         projectId: testProjectId,
         cardId: testCardId,
@@ -511,16 +520,16 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const projectFiles = repos.files.findByProjectId(testProjectId);
+      const projectFiles = await repos.files.findByProjectId(testProjectId);
       expect(projectFiles.length).toBe(1);
       expect(projectFiles[0].filename).toBe("project.txt");
 
       // Cleanup
-      repos.files.delete(projectFileId);
+      await repos.files.delete(projectFileId);
     });
 
-    it("findByCardId returns card files", () => {
-      repos.files.create({
+    it("findByCardId returns card files", async () => {
+      await repos.files.create({
         id: testFileId,
         projectId: testProjectId,
         cardId: testCardId,
@@ -531,7 +540,7 @@ describe("SQLite Repository Interfaces", () => {
         createdAt: new Date().toISOString(),
       });
 
-      const cardFiles = repos.files.findByCardId(testCardId);
+      const cardFiles = await repos.files.findByCardId(testCardId);
       expect(cardFiles.length).toBe(1);
       expect(cardFiles[0].filename).toBe("card-file.txt");
     });

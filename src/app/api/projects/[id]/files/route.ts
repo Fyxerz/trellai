@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const projectFiles = repos.files.findByProjectId(id);
+  const projectFiles = await repos.files.findByProjectId(id);
   return NextResponse.json(projectFiles);
 }
 
@@ -22,7 +22,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const project = repos.projects.findById(id);
+  const project = await repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -59,7 +59,7 @@ export async function POST(
       createdAt: new Date().toISOString(),
     };
 
-    repos.files.create(record);
+    await repos.files.create(record);
     created.push(record);
   }
 
@@ -78,7 +78,7 @@ export async function DELETE(
     return NextResponse.json({ error: "fileId is required" }, { status: 400 });
   }
 
-  const file = repos.files.findByIdAndProjectId(fileId, id);
+  const file = await repos.files.findByIdAndProjectId(fileId, id);
 
   if (!file) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -90,6 +90,6 @@ export async function DELETE(
     // File may already be gone
   }
 
-  repos.files.delete(fileId);
+  await repos.files.delete(fileId);
   return NextResponse.json({ success: true });
 }

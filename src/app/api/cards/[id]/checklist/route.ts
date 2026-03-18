@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const items = repos.checklistItems.findByCardId(id);
+  const items = await repos.checklistItems.findByCardId(id);
   return NextResponse.json(items);
 }
 
@@ -23,10 +23,10 @@ export async function POST(
   const now = new Date().toISOString();
 
   // Get the next position
-  const existing = repos.checklistItems.findByCardId(cardId);
+  const existing = await repos.checklistItems.findByCardId(cardId);
   const position = existing.length;
 
-  repos.checklistItems.create({
+  await repos.checklistItems.create({
     id,
     cardId,
     text: body.text,
@@ -35,7 +35,7 @@ export async function POST(
     createdAt: now,
   });
 
-  const item = repos.checklistItems.findById(id);
+  const item = await repos.checklistItems.findById(id);
   return NextResponse.json(item, { status: 201 });
 }
 
@@ -56,9 +56,9 @@ export async function PATCH(
   if (updates.checked !== undefined) updateData.checked = updates.checked;
   if (updates.position !== undefined) updateData.position = updates.position;
 
-  repos.checklistItems.update(itemId, cardId, updateData as { text?: string; checked?: boolean; position?: number });
+  await repos.checklistItems.update(itemId, cardId, updateData as { text?: string; checked?: boolean; position?: number });
 
-  const item = repos.checklistItems.findById(itemId);
+  const item = await repos.checklistItems.findById(itemId);
   return NextResponse.json(item);
 }
 
@@ -74,7 +74,7 @@ export async function DELETE(
     return NextResponse.json({ error: "itemId required" }, { status: 400 });
   }
 
-  repos.checklistItems.delete(itemId, cardId);
+  await repos.checklistItems.delete(itemId, cardId);
 
   return NextResponse.json({ success: true });
 }
