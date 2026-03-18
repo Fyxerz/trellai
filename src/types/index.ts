@@ -20,12 +20,15 @@ export interface TestResults {
   tests: TestResult[];
 }
 
+export type StorageMode = "local" | "supabase";
+
 export interface Project {
   id: string;
   name: string;
   repoPath: string;
   chatSessionId: string | null;
   mode: "worktree" | "queue";
+  storageMode: StorageMode;
   createdAt: string;
 }
 

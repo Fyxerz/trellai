@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards, chatMessages, checklistItems, files } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import fs from "fs";
 import path from "path";
+
+const repos = getLocalRepositories();
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -42,9 +42,9 @@ export async function PATCH(
   if (body.agentStatus !== undefined)
     updateData.agentStatus = body.agentStatus;
 
-  db.update(cards).set(updateData).where(eq(cards.id, id)).run();
+  repos.cards.update(id, updateData);
 
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   return NextResponse.json({
     ...card,
     testResults: card?.testResults ? JSON.parse(card.testResults) : null,
@@ -58,7 +58,7 @@ export async function DELETE(
   const { id } = await params;
 
   // Clean up uploaded files on disk
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   if (card) {
     const cardFilesDir = path.join(
       process.cwd(),
@@ -76,9 +76,9 @@ export async function DELETE(
   }
 
   // DB cascade handles files table rows, but delete explicitly for safety
-  db.delete(files).where(eq(files.cardId, id)).run();
-  db.delete(chatMessages).where(eq(chatMessages.cardId, id)).run();
-  db.delete(checklistItems).where(eq(checklistItems.cardId, id)).run();
-  db.delete(cards).where(eq(cards.id, id)).run();
+  repos.files.deleteByCardId(id);
+  repos.chatMessages.deleteByCardId(id);
+  repos.checklistItems.deleteByCardId(id);
+  repos.cards.delete(id);
   return NextResponse.json({ success: true });
 }

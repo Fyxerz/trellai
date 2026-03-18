@@ -1,11 +1,11 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { cards } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { v4 as uuid } from "uuid";
 import { emitToProject, emitToCard } from "@/lib/socket";
 import { waitForAnswer } from "./question-queue";
+
+const repos = getLocalRepositories();
 
 /**
  * Creates an in-process MCP server scoped to a project.
@@ -35,19 +35,14 @@ export function createBoardMcpServer(projectId: string) {
           const now = new Date().toISOString();
 
           // Calculate next position in features column
-          const existing = db
-            .select()
-            .from(cards)
-            .where(eq(cards.projectId, projectId))
-            .all();
+          const existing = repos.cards.findByProjectId(projectId);
           const featureCards = existing.filter((c) => c.column === "features");
           const maxPos = featureCards.reduce(
             (max, c) => Math.max(max, c.position),
             -1
           );
 
-          db.insert(cards)
-            .values({
+          repos.cards.create({
               id,
               projectId,
               title: args.title,
@@ -58,8 +53,7 @@ export function createBoardMcpServer(projectId: string) {
               agentStatus: "idle",
               createdAt: now,
               updatedAt: now,
-            })
-            .run();
+            });
 
           // Notify frontend so board refreshes
           try {
@@ -132,14 +126,11 @@ export function createDevMcpServer(cardId: string) {
             tests: args.tests,
           });
 
-          db.update(cards)
-            .set({
+          repos.cards.update(cardId, {
               testStatus,
               testResults,
               updatedAt: new Date().toISOString(),
-            })
-            .where(eq(cards.id, cardId))
-            .run();
+            });
 
           try {
             emitToCard(cardId, "card:test-results", {
@@ -203,10 +194,7 @@ export function createQuestionMcpServer(cardId: string) {
 
           // Set card status to awaiting_feedback so the board shows a badge
           try {
-            db.update(cards)
-              .set({ agentStatus: "awaiting_feedback", updatedAt: new Date().toISOString() })
-              .where(eq(cards.id, cardId))
-              .run();
+            repos.cards.update(cardId, { agentStatus: "awaiting_feedback", updatedAt: new Date().toISOString() });
             emitToCard(cardId, "agent:status", {
               cardId,
               status: "awaiting_feedback",
@@ -237,10 +225,7 @@ export function createQuestionMcpServer(cardId: string) {
 
             // Restore card status to running after answer received
             try {
-              db.update(cards)
-                .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
-                .where(eq(cards.id, cardId))
-                .run();
+              repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
               emitToCard(cardId, "agent:status", {
                 cardId,
                 status: "running",
@@ -296,13 +281,10 @@ export function createQuestionMcpServer(cardId: string) {
         },
         async (args) => {
           try {
-            db.update(cards)
-              .set({
+            repos.cards.update(cardId, {
                 agentStatus: "ready_for_dev",
                 updatedAt: new Date().toISOString(),
-              })
-              .where(eq(cards.id, cardId))
-              .run();
+              });
             emitToCard(cardId, "agent:status", {
               cardId,
               status: "ready_for_dev",

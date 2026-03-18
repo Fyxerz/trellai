@@ -1,6 +1,5 @@
-import { db } from "@/lib/db";
-import { cards, projects, chatMessages, checklistItems, files } from "@/lib/db/schema";
-import { eq, and, ne, isNull } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
+import type { RepositoryContext, CardRow, ProjectRow } from "@/lib/db/repositories";
 import { worktreeManager } from "./worktree-manager";
 import { queueManager } from "./queue-manager";
 import { ClaudeProcess } from "./claude-process";
@@ -9,6 +8,8 @@ import { existsSync } from "fs";
 import { emitToCard, emitToProject, emitGlobal } from "@/lib/socket";
 import { copySessionToProject } from "./session-transfer";
 import { createBoardMcpServer, createQuestionMcpServer, createDevMcpServer } from "./mcp-tools";
+
+const repos: RepositoryContext = getLocalRepositories();
 
 const PLANNING_SYSTEM_PROMPT = `You are helping plan and build a feature. You have READ-ONLY access to the codebase — you can explore files, search code, and run read-only commands, but you cannot edit or create files. Start by discussing requirements with the user. Ask clarifying questions to refine the spec.
 
@@ -66,17 +67,16 @@ class Orchestrator {
     const thinking = buf.thinkingBuffer;
     buf.thinkingBuffer = "";
     // Persist thinking to DB
-    db.insert(chatMessages)
-      .values({
-        id: uuid(),
-        cardId,
-        role: "assistant",
-        content: thinking,
-        column,
-        messageType: "thinking",
-        createdAt: new Date().toISOString(),
-      })
-      .run();
+    repos.chatMessages.create({
+      id: uuid(),
+      cardId,
+      projectId: null,
+      role: "assistant",
+      content: thinking,
+      column,
+      messageType: "thinking",
+      createdAt: new Date().toISOString(),
+    });
   }
 
   private log(cardId: string, content: string, column = "production") {
@@ -89,7 +89,7 @@ class Orchestrator {
       column,
       createdAt: new Date().toISOString(),
     };
-    db.insert(chatMessages).values(msg).run();
+    repos.chatMessages.create({ ...msg, projectId: null, messageType: null } as { id: string; cardId: string | null; projectId: string | null; role: string; content: string; column: string; messageType: string | null; createdAt: string });
     try {
       emitToCard(cardId, "agent:output", {
         cardId,
@@ -104,14 +104,10 @@ class Orchestrator {
   }
 
   private getFilesContext(projectId: string, cardId?: string): string {
-    const projectFiles = db
-      .select()
-      .from(files)
-      .where(and(eq(files.projectId, projectId), isNull(files.cardId)))
-      .all();
+    const projectFiles = repos.files.findByProjectId(projectId);
 
     const cardFiles = cardId
-      ? db.select().from(files).where(eq(files.cardId, cardId)).all()
+      ? repos.files.findByCardId(cardId)
       : [];
 
     if (projectFiles.length === 0 && cardFiles.length === 0) return "";
@@ -138,14 +134,10 @@ class Orchestrator {
 
   async sendMessage(cardId: string, message: string) {
     console.log(`[orchestrator] sendMessage(${cardId}): ${message.substring(0, 80)}...`);
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card) throw new Error("Card not found");
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, card.projectId))
-      .get();
+    const project = repos.projects.findById(card.projectId);
     if (!project) throw new Error("Project not found");
 
     // User message is now persisted by the API route before calling sendMessage,
@@ -172,12 +164,9 @@ class Orchestrator {
       if (!hasValidSession) {
         // First message or recovery from error: spawn new session
         const sessionId = uuid();
-        db.update(cards)
-          .set({ claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() });
 
-        const todos = db.select().from(checklistItems).where(eq(checklistItems.cardId, cardId)).all();
+        const todos = repos.checklistItems.findByCardId(cardId);
         let cardContext = `\n\nCard title: ${card.title}`;
         if (card.description) cardContext += `\nCard description: ${card.description}`;
         if (todos.length > 0) {
@@ -195,10 +184,7 @@ class Orchestrator {
         });
       } else {
         // Resume existing session with the new message
-        db.update(cards)
-          .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
 
         const questionMcpResume = createQuestionMcpServer(cardId);
         this.spawnAgent(cardId, project.repoPath, message, {
@@ -212,10 +198,7 @@ class Orchestrator {
     } else if (card.column === "production" && card.worktreePath) {
       const devMcpMsg1 = createDevMcpServer(cardId);
       if (hasValidSession) {
-        db.update(cards)
-          .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
 
         this.spawnAgent(cardId, card.worktreePath, message, {
           resumeSessionId: card.claudeSessionId!,
@@ -224,10 +207,7 @@ class Orchestrator {
         });
       } else {
         const sessionId = uuid();
-        db.update(cards)
-          .set({ claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() });
 
         this.spawnAgent(cardId, card.worktreePath, message, {
           sessionId,
@@ -237,15 +217,12 @@ class Orchestrator {
       }
     } else if (card.column === "production" && !card.worktreePath) {
       // Queue mode — agent works directly in the project repo
-      const project2 = db.select().from(projects).where(eq(projects.id, card.projectId)).get();
+      const project2 = repos.projects.findById(card.projectId);
       if (!project2) throw new Error("Project not found");
       const devMcpMsg2 = createDevMcpServer(cardId);
 
       if (hasValidSession) {
-        db.update(cards)
-          .set({ agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { agentStatus: "running", updatedAt: new Date().toISOString() });
 
         this.spawnAgent(cardId, project2.repoPath, message, {
           resumeSessionId: card.claudeSessionId!,
@@ -254,10 +231,7 @@ class Orchestrator {
         });
       } else {
         const sessionId = uuid();
-        db.update(cards)
-          .set({ claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { claudeSessionId: sessionId, agentStatus: "running", updatedAt: new Date().toISOString() });
 
         this.spawnAgent(cardId, project2.repoPath, message, {
           sessionId,
@@ -304,16 +278,16 @@ class Orchestrator {
 
         // Persist the cleaned message
         if (cleaned) {
-          db.insert(chatMessages)
-            .values({
+          repos.chatMessages.create({
               id: uuid(),
               cardId,
               role: "assistant",
               content: cleaned,
               column: options.column,
+              projectId: null,
+              messageType: null,
               createdAt: new Date().toISOString(),
-            })
-            .run();
+            });
 
           try {
             emitToCard(cardId, "agent:output", {
@@ -329,10 +303,7 @@ class Orchestrator {
         }
 
         // Set ready_for_dev status — user confirms the move via UI
-        db.update(cards)
-          .set({ agentStatus: "ready_for_dev", updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { agentStatus: "ready_for_dev", updatedAt: new Date().toISOString() });
         try {
           emitToCard(cardId, "agent:status", { cardId, status: "ready_for_dev" });
         } catch {
@@ -368,44 +339,41 @@ class Orchestrator {
           lastToolSeg.input = data.content;
         }
         // Persist tool input
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId,
             role: "assistant",
             content: data.content,
             column: options.column,
             messageType: "tool_input",
-            createdAt: new Date().toISOString(),
-          })
-          .run();
+            projectId: null,
+              createdAt: new Date().toISOString(),
+          });
       } else if (data.type === "tool_result") {
         buf.segments.push({ kind: "tool_result", content: data.content, toolName: data.toolName || "unknown" });
         // Persist tool result
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId,
             role: "assistant",
             content: data.content,
             column: options.column,
             messageType: "tool_result",
-            createdAt: new Date().toISOString(),
-          })
-          .run();
+            projectId: null,
+              createdAt: new Date().toISOString(),
+          });
       } else if (data.type === "tool_summary") {
         // Persist tool summary
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId,
             role: "assistant",
             content: data.content,
             column: options.column,
             messageType: "tool_summary",
-            createdAt: new Date().toISOString(),
-          })
-          .run();
+            projectId: null,
+              createdAt: new Date().toISOString(),
+          });
       } else if (data.type === "text") {
         // Flush any pending thinking before text output
         this.flushThinkingBuffer(cardId, options.column);
@@ -422,30 +390,28 @@ class Orchestrator {
         this.streamingBuffers.delete(cardId);
         // Persist final result
         if (data.content) {
-          db.insert(chatMessages)
-            .values({
+          repos.chatMessages.create({
               id: uuid(),
               cardId,
               role: "assistant",
               content: data.content,
               column: options.column,
               messageType: null,
+              projectId: null,
               createdAt: new Date().toISOString(),
-            })
-            .run();
+            });
         }
       } else if (data.type === "system") {
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId,
             role: "system",
             content: data.content,
             column: options.column,
             messageType: null,
-            createdAt: new Date().toISOString(),
-          })
-          .run();
+            projectId: null,
+              createdAt: new Date().toISOString(),
+          });
       }
 
       // Emit via socket for real-time display (all types)
@@ -464,10 +430,7 @@ class Orchestrator {
     // Capture session_id from SDK (may differ from what we provided)
     proc.on("session", (data: { sessionId: string }) => {
       console.log(`[orchestrator] session(${cardId}): ${data.sessionId}`);
-      db.update(cards)
-        .set({ claudeSessionId: data.sessionId, updatedAt: new Date().toISOString() })
-        .where(eq(cards.id, cardId))
-        .run();
+      repos.cards.update(cardId, { claudeSessionId: data.sessionId, updatedAt: new Date().toISOString() });
     });
 
     // Forward usage/rate-limit events globally
@@ -497,7 +460,7 @@ class Orchestrator {
       this.streamingBuffers.delete(cardId);
 
       // Determine status based on column context
-      const exitCard = db.select().from(cards).where(eq(cards.id, cardId)).get();
+      const exitCard = repos.cards.findById(cardId);
       let newStatus: string;
       if (code !== 0) {
         newStatus = "error";
@@ -511,40 +474,28 @@ class Orchestrator {
       }
 
       // Queue mode auto-commit on successful production exit
-      const currentCard = db.select().from(cards).where(eq(cards.id, cardId)).get();
+      const currentCard = repos.cards.findById(cardId);
       if (options.column === "production" && currentCard && !currentCard.worktreePath) {
-        const proj = db.select().from(projects).where(eq(projects.id, currentCard.projectId)).get();
+        const proj = repos.projects.findById(currentCard.projectId);
         if (proj && code === 0) {
           try {
             const { sha } = queueManager.commitChanges(proj.repoPath, currentCard.title, cardId);
-            db.update(cards)
-              .set({ commitSha: sha, agentStatus: "dev_complete", updatedAt: new Date().toISOString() })
-              .where(eq(cards.id, cardId))
-              .run();
+            repos.cards.update(cardId, { commitSha: sha, agentStatus: "dev_complete", updatedAt: new Date().toISOString() });
             this.log(cardId, `Auto-committed changes: \`${sha.substring(0, 8)}\``);
             newStatus = "dev_complete";
           } catch (err) {
             console.error(`[orchestrator] Auto-commit failed for ${cardId}:`, err);
             newStatus = "error";
             this.log(cardId, `Auto-commit failed: ${err instanceof Error ? err.message : String(err)}`);
-            db.update(cards)
-              .set({ agentStatus: newStatus, updatedAt: new Date().toISOString() })
-              .where(eq(cards.id, cardId))
-              .run();
+            repos.cards.update(cardId, { agentStatus: newStatus, updatedAt: new Date().toISOString() });
           }
         } else {
-          db.update(cards)
-            .set({ agentStatus: newStatus, updatedAt: new Date().toISOString() })
-            .where(eq(cards.id, cardId))
-            .run();
+          repos.cards.update(cardId, { agentStatus: newStatus, updatedAt: new Date().toISOString() });
         }
         // Process next queued card regardless of success/failure
         if (proj) this.processNextInQueue(proj.id);
       } else {
-        db.update(cards)
-          .set({ agentStatus: newStatus, updatedAt: new Date().toISOString() })
-          .where(eq(cards.id, cardId))
-          .run();
+        repos.cards.update(cardId, { agentStatus: newStatus, updatedAt: new Date().toISOString() });
       }
 
       // Only show exit messages for errors, not normal completion
@@ -597,17 +548,14 @@ class Orchestrator {
   }
 
   async confirmMoveToDev(cardId: string) {
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card) throw new Error("Card not found");
     if (card.column !== "features") {
       throw new Error("Card is not in the features column");
     }
 
     // Show ready_for_dev status while worktree is being created
-    db.update(cards)
-      .set({ agentStatus: "ready_for_dev", updatedAt: new Date().toISOString() })
-      .where(eq(cards.id, cardId))
-      .run();
+    repos.cards.update(cardId, { agentStatus: "ready_for_dev", updatedAt: new Date().toISOString() });
     try {
       emitToCard(cardId, "agent:status", { cardId, status: "ready_for_dev" });
     } catch {
@@ -619,14 +567,10 @@ class Orchestrator {
   }
 
   async onMoveToProduction(cardId: string) {
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card) throw new Error("Card not found");
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, card.projectId))
-      .get();
+    const project = repos.projects.findById(card.projectId);
     if (!project) throw new Error("Project not found");
 
     if (project.mode === "queue") {
@@ -638,8 +582,8 @@ class Orchestrator {
 
   private async onMoveToProductionQueue(
     cardId: string,
-    card: typeof cards.$inferSelect,
-    project: typeof projects.$inferSelect
+    card: CardRow,
+    project: ProjectRow
   ) {
     // Stop the existing planning process if running
     const existingProc = this.processes.get(cardId);
@@ -654,29 +598,15 @@ class Orchestrator {
     }
 
     // Check if another card in this project is already running in production
-    const runningCards = db
-      .select()
-      .from(cards)
-      .where(
-        and(
-          eq(cards.projectId, project.id),
-          eq(cards.column, "production"),
-          eq(cards.agentStatus, "running"),
-          ne(cards.id, cardId)
-        )
-      )
-      .all();
+    const runningCards = repos.cards.findByConditions({ projectId: project.id, column: "production", agentStatus: "running", notId: cardId });
 
     if (runningCards.length > 0) {
       // Queue this card
-      db.update(cards)
-        .set({
+      repos.cards.update(cardId, {
           column: "production",
           agentStatus: "queued",
           updatedAt: new Date().toISOString(),
-        })
-        .where(eq(cards.id, cardId))
-        .run();
+        });
 
       const q = this.queue.get(project.id) || [];
       q.push(cardId);
@@ -695,20 +625,14 @@ class Orchestrator {
     const planningSessionId = card.claudeSessionId;
     const sessionId = uuid();
 
-    db.update(cards)
-      .set({
+    repos.cards.update(cardId, {
         column: "production",
         agentStatus: "running",
         claudeSessionId: sessionId,
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, cardId))
-      .run();
+      });
 
-    const planningMessages = db.select()
-      .from(chatMessages)
-      .where(and(eq(chatMessages.cardId, cardId), eq(chatMessages.column, "features")))
-      .all();
+    const planningMessages = repos.chatMessages.findByCardIdAndColumn(cardId, "features");
 
     let planningContext = "";
     if (planningMessages.length > 0) {
@@ -744,8 +668,8 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
 
   private async onMoveToProductionWorktree(
     cardId: string,
-    card: typeof cards.$inferSelect,
-    project: typeof projects.$inferSelect
+    card: CardRow,
+    project: ProjectRow
   ) {
     // Stop the existing planning process if running
     const existingProc = this.processes.get(cardId);
@@ -780,16 +704,7 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
     const planningSessionId = card.claudeSessionId;
 
     // Build conflict awareness
-    const otherCards = db
-      .select()
-      .from(cards)
-      .where(
-        and(
-          eq(cards.column, "production"),
-          ne(cards.id, cardId)
-        )
-      )
-      .all();
+    const otherCards = repos.cards.findByConditions({ column: "production", notId: cardId });
 
     let conflictWarning = "";
     const filesByBranch: Record<string, string[]> = {};
@@ -831,16 +746,13 @@ ${card.description ? `Description: ${card.description}` : ""}${planningContext}$
     }
 
     if (sessionCopied && planningSessionId) {
-      db.update(cards)
-        .set({
+      repos.cards.update(cardId, {
           column: "production",
           branchName,
           worktreePath,
           agentStatus: "running",
           updatedAt: new Date().toISOString(),
-        })
-        .where(eq(cards.id, cardId))
-        .run();
+        });
 
       const filesContextForked = this.getFilesContext(card.projectId, cardId);
       const handoffMessage = `You are now in a development worktree at ${worktreePath} on branch ${branchName}. Your planning discussion is preserved in this session — proceed to implement the feature.${conflictWarning}${filesContextForked}
@@ -858,22 +770,16 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     } else {
       const sessionId = uuid();
 
-      db.update(cards)
-        .set({
+      repos.cards.update(cardId, {
           column: "production",
           branchName,
           worktreePath,
           claudeSessionId: sessionId,
           agentStatus: "running",
           updatedAt: new Date().toISOString(),
-        })
-        .where(eq(cards.id, cardId))
-        .run();
+        });
 
-      const planningMessages = db.select()
-        .from(chatMessages)
-        .where(and(eq(chatMessages.cardId, cardId), eq(chatMessages.column, "features")))
-        .all();
+      const planningMessages = repos.chatMessages.findByCardIdAndColumn(cardId, "features");
 
       let planningContext = "";
       if (planningMessages.length > 0) {
@@ -913,18 +819,15 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     }
     this.processes.delete(cardId);
 
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
 
     // Queue mode: auto-commit any uncommitted changes
     if (card && !card.worktreePath) {
-      const project = db.select().from(projects).where(eq(projects.id, card.projectId)).get();
+      const project = repos.projects.findById(card.projectId);
       if (project && queueManager.hasUncommittedChanges(project.repoPath)) {
         try {
           const { sha } = queueManager.commitChanges(project.repoPath, card.title, cardId);
-          db.update(cards)
-            .set({ commitSha: sha, updatedAt: new Date().toISOString() })
-            .where(eq(cards.id, cardId))
-            .run();
+          repos.cards.update(cardId, { commitSha: sha, updatedAt: new Date().toISOString() });
           this.log(cardId, `Auto-committed changes: \`${sha.substring(0, 8)}\``);
         } catch (err) {
           console.error(`[orchestrator] Auto-commit on review failed for ${cardId}:`, err);
@@ -934,46 +837,36 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
       if (project) this.processNextInQueue(project.id);
     }
 
-    db.update(cards)
-      .set({
+    repos.cards.update(cardId, {
         agentStatus: "complete",
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, cardId))
-      .run();
+      });
   }
 
   async onMoveToComplete(cardId: string) {
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card) return;
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, card.projectId))
-      .get();
+    const project = repos.projects.findById(card.projectId);
     if (!project) return;
 
     // Queue mode — work is already committed on main, just mark done
     if (!card.branchName && card.commitSha) {
-      db.insert(chatMessages)
-        .values({
-          id: uuid(),
-          cardId,
-          role: "system",
-          content: `Approved. Commit \`${card.commitSha.substring(0, 8)}\` is already on main.`,
-          column: "complete",
-          createdAt: new Date().toISOString(),
-        })
-        .run();
+      repos.chatMessages.create({
+        id: uuid(),
+        cardId,
+        projectId: null,
+        role: "system",
+        content: `Approved. Commit \`${card.commitSha.substring(0, 8)}\` is already on main.`,
+        column: "complete",
+        messageType: null,
+        createdAt: new Date().toISOString(),
+      });
 
-      db.update(cards)
-        .set({
+      repos.cards.update(cardId, {
           agentStatus: "merged",
           updatedAt: new Date().toISOString(),
-        })
-        .where(eq(cards.id, cardId))
-        .run();
+        });
       return;
     }
 
@@ -986,39 +879,36 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     );
 
     if (!result.success) {
-      db.update(cards)
-        .set({
+      repos.cards.update(cardId, {
           column: "review",
           agentStatus: "error",
           updatedAt: new Date().toISOString(),
-        })
-        .where(eq(cards.id, cardId))
-        .run();
+        });
 
-      db.insert(chatMessages)
-        .values({
-          id: uuid(),
-          cardId,
-          role: "system",
-          content: `Merge failed: ${result.error}`,
-          column: "review",
-          createdAt: new Date().toISOString(),
-        })
-        .run();
+      repos.chatMessages.create({
+        id: uuid(),
+        cardId,
+        projectId: null,
+        role: "system",
+        content: `Merge failed: ${result.error}`,
+        column: "review",
+        messageType: null,
+        createdAt: new Date().toISOString(),
+      });
 
       throw new Error(`Merge failed: ${result.error}`);
     }
 
-    db.insert(chatMessages)
-      .values({
-        id: uuid(),
-        cardId,
-        role: "system",
-        content: `Branch \`${card.branchName}\` merged successfully.`,
-        column: "complete",
-        createdAt: new Date().toISOString(),
-      })
-      .run();
+    repos.chatMessages.create({
+      id: uuid(),
+      cardId,
+      projectId: null,
+      role: "system",
+      content: `Branch \`${card.branchName}\` merged successfully.`,
+      column: "complete",
+      messageType: null,
+      createdAt: new Date().toISOString(),
+    });
 
     if (card.worktreePath) {
       worktreeManager.deleteWorktree(
@@ -1028,14 +918,11 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
       );
     }
 
-    db.update(cards)
-      .set({
+    repos.cards.update(cardId, {
         agentStatus: "merged",
         worktreePath: null,
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, cardId))
-      .run();
+      });
   }
 
   async onMoveToFeatures(cardId: string) {
@@ -1046,15 +933,11 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     }
     this.processes.delete(cardId);
 
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card) return;
 
     // Remove from queue if queued
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, card.projectId))
-      .get();
+    const project = repos.projects.findById(card.projectId);
 
     if (project) {
       const q = this.queue.get(project.id);
@@ -1073,17 +956,14 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
       );
     }
 
-    db.update(cards)
-      .set({
+    repos.cards.update(cardId, {
         agentStatus: "idle",
         branchName: null,
         worktreePath: null,
         claudeSessionId: null,
         commitSha: null,
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, cardId))
-      .run();
+      });
 
     // Process next queued card if there was one waiting
     if (project) this.processNextInQueue(project.id);
@@ -1093,17 +973,7 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     const q = this.queue.get(projectId) || [];
     if (q.length === 0) {
       // Also check DB for queued cards (in case queue was lost on hot reload)
-      const queuedCards = db
-        .select()
-        .from(cards)
-        .where(
-          and(
-            eq(cards.projectId, projectId),
-            eq(cards.agentStatus, "queued"),
-            eq(cards.column, "production")
-          )
-        )
-        .all()
+      const queuedCards = repos.cards.findByConditions({ projectId: projectId, agentStatus: "queued", column: "production" })
         .sort((a, b) => a.position - b.position);
 
       if (queuedCards.length === 0) return;
@@ -1116,42 +986,26 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
     }
 
     // Check no other card is currently running in production for this project
-    const runningCards = db
-      .select()
-      .from(cards)
-      .where(
-        and(
-          eq(cards.projectId, projectId),
-          eq(cards.column, "production"),
-          eq(cards.agentStatus, "running")
-        )
-      )
-      .all();
+    const runningCards = repos.cards.findByConditions({ projectId: projectId, column: "production", agentStatus: "running" });
 
     if (runningCards.length > 0) return;
 
     const nextCardId = q.shift()!;
-    const nextCard = db.select().from(cards).where(eq(cards.id, nextCardId)).get();
+    const nextCard = repos.cards.findById(nextCardId);
     if (!nextCard || nextCard.column !== "production") return;
 
-    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
+    const project = repos.projects.findById(projectId);
     if (!project) return;
 
     // Start the queued card
     const sessionId = uuid();
-    db.update(cards)
-      .set({
+    repos.cards.update(nextCardId, {
         agentStatus: "running",
         claudeSessionId: sessionId,
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, nextCardId))
-      .run();
+      });
 
-    const planningMessages = db.select()
-      .from(chatMessages)
-      .where(and(eq(chatMessages.cardId, nextCardId), eq(chatMessages.column, "features")))
-      .all();
+    const planningMessages = repos.chatMessages.findByCardIdAndColumn(nextCardId, "features");
 
     let planningContext = "";
     if (planningMessages.length > 0) {
@@ -1186,10 +1040,10 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
   }
 
   async revertCard(cardId: string) {
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     if (!card || !card.commitSha) throw new Error("Card has no commit to revert");
 
-    const project = db.select().from(projects).where(eq(projects.id, card.projectId)).get();
+    const project = repos.projects.findById(card.projectId);
     if (!project) throw new Error("Project not found");
 
     const result = queueManager.revertCommit(project.repoPath, card.commitSha);
@@ -1197,14 +1051,11 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       throw new Error(`Revert failed: ${result.error}`);
     }
 
-    db.update(cards)
-      .set({
+    repos.cards.update(cardId, {
         agentStatus: "reverted",
         commitSha: null,
         updatedAt: new Date().toISOString(),
-      })
-      .where(eq(cards.id, cardId))
-      .run();
+      });
 
     this.log(cardId, `Reverted commit \`${card.commitSha.substring(0, 8)}\`.`, card.column);
 
@@ -1220,7 +1071,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     if (proc?.isRunning) return { running: true };
 
     // Fallback: check DB status (process map may be lost on hot-reload)
-    const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+    const card = repos.cards.findById(cardId);
     return { running: card?.agentStatus === "running" };
   }
 
@@ -1238,14 +1089,15 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     console.log(`[orchestrator] logProject(${projectId}): ${content}`);
     const msg = {
       id: uuid(),
-      cardId: null,
-      projectId,
+      cardId: null as string | null,
+      projectId: projectId as string | null,
       role: "system",
       content,
       column: "project",
+      messageType: null as string | null,
       createdAt: new Date().toISOString(),
     };
-    db.insert(chatMessages).values(msg).run();
+    repos.chatMessages.create(msg);
     try {
       emitToProject(projectId, "agent:output", {
         projectId,
@@ -1260,21 +1112,20 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
 
   async sendProjectMessage(projectId: string, message: string) {
     console.log(`[orchestrator] sendProjectMessage(${projectId}): ${message.substring(0, 80)}...`);
-    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
+    const project = repos.projects.findById(projectId);
     if (!project) throw new Error("Project not found");
 
     // Save user message
-    db.insert(chatMessages)
-      .values({
+    repos.chatMessages.create({
         id: uuid(),
         cardId: null,
         projectId,
         role: "user",
         content: message,
         column: "project",
-        createdAt: new Date().toISOString(),
-      })
-      .run();
+        messageType: null,
+              createdAt: new Date().toISOString(),
+      });
 
     // Stop existing process if running
     const proc = this.projectProcesses.get(projectId);
@@ -1287,10 +1138,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
 
     if (!hasValidSession) {
       const sessionId = uuid();
-      db.update(projects)
-        .set({ chatSessionId: sessionId })
-        .where(eq(projects.id, projectId))
-        .run();
+      repos.projects.update(projectId, { chatSessionId: sessionId });
 
       const projectFilesContext = this.getFilesContext(projectId);
       this.spawnProjectAgent(projectId, project.repoPath, message, {
@@ -1341,8 +1189,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       // Persist verbose output to DB
       if (data.type === "result") {
         if (data.content) {
-          db.insert(chatMessages)
-            .values({
+          repos.chatMessages.create({
               id: uuid(),
               cardId: null,
               projectId,
@@ -1351,12 +1198,10 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
               column: "project",
               messageType: null,
               createdAt: new Date().toISOString(),
-            })
-            .run();
+            });
         }
       } else if (data.type === "system") {
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId: null,
             projectId,
@@ -1365,11 +1210,9 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             column: "project",
             messageType: null,
             createdAt: new Date().toISOString(),
-          })
-          .run();
+          });
       } else if (data.type === "thinking") {
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId: null,
             projectId,
@@ -1378,11 +1221,9 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             column: "project",
             messageType: "thinking",
             createdAt: new Date().toISOString(),
-          })
-          .run();
+          });
       } else if (data.type === "tool_input") {
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId: null,
             projectId,
@@ -1391,11 +1232,9 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             column: "project",
             messageType: "tool_input",
             createdAt: new Date().toISOString(),
-          })
-          .run();
+          });
       } else if (data.type === "tool_result") {
-        db.insert(chatMessages)
-          .values({
+        repos.chatMessages.create({
             id: uuid(),
             cardId: null,
             projectId,
@@ -1404,17 +1243,13 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             column: "project",
             messageType: "tool_result",
             createdAt: new Date().toISOString(),
-          })
-          .run();
+          });
       }
     });
 
     proc.on("session", (data: { sessionId: string }) => {
       console.log(`[orchestrator] projectSession(${projectId}): ${data.sessionId}`);
-      db.update(projects)
-        .set({ chatSessionId: data.sessionId })
-        .where(eq(projects.id, projectId))
-        .run();
+      repos.projects.update(projectId, { chatSessionId: data.sessionId });
     });
 
     // Forward usage/rate-limit events globally
@@ -1443,10 +1278,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       if (code !== 0) {
         this.logProject(projectId, `Agent exited with code ${code}.`);
         // Clear session on error so next message starts fresh
-        db.update(projects)
-          .set({ chatSessionId: null })
-          .where(eq(projects.id, projectId))
-          .run();
+        repos.projects.update(projectId, { chatSessionId: null });
       }
 
       try {
@@ -1488,19 +1320,10 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     this.stopProjectAgent(projectId);
 
     // Delete all project-level chat messages
-    db.delete(chatMessages)
-      .where(
-        and(
-          eq(chatMessages.projectId, projectId),
-        )
-      )
-      .run();
+    repos.chatMessages.deleteByProjectId(projectId);
 
     // Clear session ID
-    db.update(projects)
-      .set({ chatSessionId: null })
-      .where(eq(projects.id, projectId))
-      .run();
+    repos.projects.update(projectId, { chatSessionId: null });
   }
 }
 

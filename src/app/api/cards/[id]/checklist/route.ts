@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { checklistItems } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { v4 as uuid } from "uuid";
+
+const repos = getLocalRepositories();
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const items = db
-    .select()
-    .from(checklistItems)
-    .where(eq(checklistItems.cardId, id))
-    .orderBy(checklistItems.position)
-    .all();
+  const items = repos.checklistItems.findByCardId(id);
   return NextResponse.json(items);
 }
 
@@ -28,29 +23,19 @@ export async function POST(
   const now = new Date().toISOString();
 
   // Get the next position
-  const existing = db
-    .select()
-    .from(checklistItems)
-    .where(eq(checklistItems.cardId, cardId))
-    .all();
+  const existing = repos.checklistItems.findByCardId(cardId);
   const position = existing.length;
 
-  db.insert(checklistItems)
-    .values({
-      id,
-      cardId,
-      text: body.text,
-      checked: false,
-      position,
-      createdAt: now,
-    })
-    .run();
+  repos.checklistItems.create({
+    id,
+    cardId,
+    text: body.text,
+    checked: false,
+    position,
+    createdAt: now,
+  });
 
-  const item = db
-    .select()
-    .from(checklistItems)
-    .where(eq(checklistItems.id, id))
-    .get();
+  const item = repos.checklistItems.findById(id);
   return NextResponse.json(item, { status: 201 });
 }
 
@@ -71,18 +56,9 @@ export async function PATCH(
   if (updates.checked !== undefined) updateData.checked = updates.checked;
   if (updates.position !== undefined) updateData.position = updates.position;
 
-  db.update(checklistItems)
-    .set(updateData)
-    .where(
-      and(eq(checklistItems.id, itemId), eq(checklistItems.cardId, cardId))
-    )
-    .run();
+  repos.checklistItems.update(itemId, cardId, updateData as { text?: string; checked?: boolean; position?: number });
 
-  const item = db
-    .select()
-    .from(checklistItems)
-    .where(eq(checklistItems.id, itemId))
-    .get();
+  const item = repos.checklistItems.findById(itemId);
   return NextResponse.json(item);
 }
 
@@ -98,11 +74,7 @@ export async function DELETE(
     return NextResponse.json({ error: "itemId required" }, { status: 400 });
   }
 
-  db.delete(checklistItems)
-    .where(
-      and(eq(checklistItems.id, itemId), eq(checklistItems.cardId, cardId))
-    )
-    .run();
+  repos.checklistItems.delete(itemId, cardId);
 
   return NextResponse.json({ success: true });
 }

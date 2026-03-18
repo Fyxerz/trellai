@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards, projects } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { stopPreviewServer } from "../preview/route";
 import type { Column } from "@/types";
+
+const repos = getLocalRepositories();
 
 export async function POST(
   req: NextRequest,
@@ -17,7 +17,7 @@ export async function POST(
     position: number;
   };
 
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -26,7 +26,7 @@ export async function POST(
   const now = new Date().toISOString();
 
   // Check if project is in queue mode
-  const project = db.select().from(projects).where(eq(projects.id, card.projectId)).get();
+  const project = repos.projects.findById(card.projectId);
   const isQueueMode = project?.mode === "queue";
 
   // Queue mode complete transition doesn't need merge — work is already on main
@@ -34,10 +34,7 @@ export async function POST(
 
   // Update DB for all transitions EXCEPT review→complete in worktree mode (which needs merge first)
   if (!isCompleteTransition) {
-    db.update(cards)
-      .set({ column, position, updatedAt: now })
-      .where(eq(cards.id, id))
-      .run();
+    repos.cards.update(id, { column, position, updatedAt: now });
   }
 
   // Stop preview server when leaving review
@@ -54,10 +51,7 @@ export async function POST(
     } else if (isCompleteTransition) {
       await orchestrator.onMoveToComplete(id);
       // Merge succeeded — now update column
-      db.update(cards)
-        .set({ column, position, updatedAt: now })
-        .where(eq(cards.id, id))
-        .run();
+      repos.cards.update(id, { column, position, updatedAt: now });
     } else if (column === "features" && previousColumn !== "features") {
       await orchestrator.onMoveToFeatures(id);
     }
@@ -65,7 +59,6 @@ export async function POST(
     console.error("Orchestrator error:", error);
     if (isCompleteTransition) {
       // Orchestrator already rolled card back to "review" with error status
-      const failedCard = db.select().from(cards).where(eq(cards.id, id)).get();
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "Merge failed" },
         { status: 500 }
@@ -73,6 +66,6 @@ export async function POST(
     }
   }
 
-  const updatedCard = db.select().from(cards).where(eq(cards.id, id)).get();
+  const updatedCard = repos.cards.findById(id);
   return NextResponse.json(updatedCard);
 }

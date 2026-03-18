@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards, projects } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { worktreeManager } from "@/lib/agents/worktree-manager";
 import { queueManager } from "@/lib/agents/queue-manager";
+
+const repos = getLocalRepositories();
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   if (!card || (!card.branchName && !card.commitSha)) {
     return NextResponse.json({ diff: "" });
   }
 
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, card.projectId))
-    .get();
+  const project = repos.projects.findById(card.projectId);
   if (!project) {
     return NextResponse.json({ diff: "" });
   }

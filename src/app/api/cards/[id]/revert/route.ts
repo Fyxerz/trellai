@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { orchestrator } from "@/lib/agents/orchestrator";
+
+const repos = getLocalRepositories();
 
 export async function POST(
   _req: NextRequest,
@@ -12,7 +12,7 @@ export async function POST(
 
   try {
     await orchestrator.revertCard(id);
-    const updatedCard = db.select().from(cards).where(eq(cards.id, id)).get();
+    const updatedCard = repos.cards.findById(id);
     return NextResponse.json(updatedCard);
   } catch (error) {
     return NextResponse.json(

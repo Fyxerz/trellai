@@ -137,6 +137,13 @@ try {
   // Column already exists
 }
 
+// Migrate: add storage_mode column to projects (local vs supabase)
+try {
+  sqlite.exec(`ALTER TABLE projects ADD COLUMN storage_mode TEXT NOT NULL DEFAULT 'local'`);
+} catch {
+  // Column already exists
+}
+
 // Migrate: create files table for user uploads
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS files (

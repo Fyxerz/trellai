@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards, checklistItems } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { v4 as uuid } from "uuid";
+
+const repos = getLocalRepositories();
 
 export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("projectId");
@@ -13,19 +13,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const allCards = db
-    .select()
-    .from(cards)
-    .where(eq(cards.projectId, projectId))
-    .all();
+  const allCards = repos.cards.findByProjectId(projectId);
 
   // Attach checklist counts
   const enriched = allCards.map((card) => {
-    const items = db
-      .select()
-      .from(checklistItems)
-      .where(eq(checklistItems.cardId, card.id))
-      .all();
+    const items = repos.checklistItems.findByCardId(card.id);
     return {
       ...card,
       testResults: card.testResults ? JSON.parse(card.testResults) : null,
@@ -43,11 +35,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   // Get max position in the target column
-  const existing = db
-    .select()
-    .from(cards)
-    .where(eq(cards.projectId, body.projectId))
-    .all();
+  const existing = repos.cards.findByProjectId(body.projectId);
 
   const columnCards = existing.filter(
     (c) => c.column === (body.column || "features")
@@ -57,21 +45,19 @@ export async function POST(req: NextRequest) {
     -1
   );
 
-  db.insert(cards)
-    .values({
-      id,
-      projectId: body.projectId,
-      title: body.title,
-      description: body.description || "",
-      type: body.type || "feature",
-      column: body.column || "features",
-      position: maxPos + 1,
-      agentStatus: "idle",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  repos.cards.create({
+    id,
+    projectId: body.projectId,
+    title: body.title,
+    description: body.description || "",
+    type: body.type || "feature",
+    column: body.column || "features",
+    position: maxPos + 1,
+    agentStatus: "idle",
+    createdAt: now,
+    updatedAt: now,
+  });
 
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   return NextResponse.json(card, { status: 201 });
 }

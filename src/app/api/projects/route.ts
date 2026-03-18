@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { projects, cards } from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
 import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
 
+const repos = getLocalRepositories();
+
 export async function GET() {
-  const allProjects = db.select().from(projects).all();
+  const allProjects = repos.projects.findAll();
   return NextResponse.json(allProjects);
 }
 
@@ -32,14 +32,13 @@ export async function POST(req: NextRequest) {
   const id = uuid();
   const now = new Date().toISOString();
 
-  db.insert(projects)
-    .values({
-      id,
-      name: body.name,
-      repoPath: body.repoPath,
-      createdAt: now,
-    })
-    .run();
+  repos.projects.create({
+    id,
+    name: body.name,
+    repoPath: body.repoPath,
+    mode: "worktree",
+    createdAt: now,
+  });
 
   // Generate .claude/ documentation files (non-blocking on failure)
   let docsGenerated = false;
@@ -50,11 +49,7 @@ export async function POST(req: NextRequest) {
     console.error("Failed to generate project docs:", err);
   }
 
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, id))
-    .get();
+  const project = repos.projects.findById(id);
   return NextResponse.json({ ...project, docsGenerated }, { status: 201 });
 }
 
@@ -68,16 +63,10 @@ export async function PATCH(req: NextRequest) {
 
   // Mode toggle guard: reject if cards are in production or review
   if (mode && (mode === "worktree" || mode === "queue")) {
-    const activeCards = db
-      .select()
-      .from(cards)
-      .where(
-        and(
-          eq(cards.projectId, id),
-          inArray(cards.column, ["production", "review"])
-        )
-      )
-      .all();
+    const activeCards = repos.cards.findByConditions({
+      projectId: id,
+      column: ["production", "review"],
+    });
 
     if (activeCards.length > 0) {
       return NextResponse.json(
@@ -86,17 +75,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    db.update(projects).set({ mode }).where(eq(projects.id, id)).run();
+    repos.projects.update(id, { mode });
   }
 
   if (name) {
-    db.update(projects).set({ name }).where(eq(projects.id, id)).run();
+    repos.projects.update(id, { name });
   }
 
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, id))
-    .get();
+  const project = repos.projects.findById(id);
   return NextResponse.json(project);
 }

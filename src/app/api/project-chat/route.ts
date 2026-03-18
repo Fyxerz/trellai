@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
-import { db } from "@/lib/db";
-import { chatMessages } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
+
+const repos = getLocalRepositories();
 
 export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("projectId");
@@ -13,16 +13,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const messages = db
-    .select()
-    .from(chatMessages)
-    .where(
-      and(
-        eq(chatMessages.projectId, projectId),
-        isNull(chatMessages.cardId)
-      )
-    )
-    .all();
+  const messages = repos.chatMessages.findByProjectId(projectId);
 
   return NextResponse.json(messages);
 }

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { projects, cards } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
+
+const repos = getLocalRepositories();
 
 export async function GET() {
-  const allProjects = db.select().from(projects).all();
-  const allCards = db.select().from(cards).all();
+  const allProjects = repos.projects.findAll();
+  const allCards = repos.cards.findAll();
 
   const attentionStatuses = new Set(["awaiting_feedback", "dev_complete", "error"]);
 

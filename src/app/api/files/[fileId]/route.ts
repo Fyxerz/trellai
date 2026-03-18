@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { files } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import fs from "fs";
+
+const repos = getLocalRepositories();
 
 export async function GET(
   _req: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { fileId } = await params;
 
-  const file = db.select().from(files).where(eq(files.id, fileId)).get();
+  const file = repos.files.findById(fileId);
   if (!file) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { cards } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
 import net from "net";
+
+const repos = getLocalRepositories();
 
 const previewServers = new Map<
   string,
@@ -44,7 +44,7 @@ export async function POST(
     });
   }
 
-  const card = db.select().from(cards).where(eq(cards.id, cardId)).get();
+  const card = repos.cards.findById(cardId);
   if (!card?.worktreePath) {
     return NextResponse.json(
       { error: "No worktree path for this card" },

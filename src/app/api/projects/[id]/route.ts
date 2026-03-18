@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { projects, cards, chatMessages, checklistItems } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
+
+const repos = getLocalRepositories();
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = db.select().from(projects).where(eq(projects.id, id)).get();
+  const project = repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -21,17 +21,13 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const project = db.select().from(projects).where(eq(projects.id, id)).get();
+  const project = repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
   // Check for running agents
-  const projectCards = db
-    .select()
-    .from(cards)
-    .where(eq(cards.projectId, id))
-    .all();
+  const projectCards = repos.cards.findByProjectId(id);
 
   const runningCards = projectCards.filter(
     (c) => c.agentStatus === "running" || c.agentStatus === "queued"
@@ -51,22 +47,16 @@ export async function DELETE(
   // Delete all cards for this project (cascade handles checklist + chat via FK)
   for (const card of projectCards) {
     // Explicitly delete related records for safety
-    db.delete(checklistItems)
-      .where(eq(checklistItems.cardId, card.id))
-      .run();
-    db.delete(chatMessages)
-      .where(eq(chatMessages.cardId, card.id))
-      .run();
-    db.delete(cards).where(eq(cards.id, card.id)).run();
+    repos.checklistItems.deleteByCardId(card.id);
+    repos.chatMessages.deleteByCardId(card.id);
+    repos.cards.delete(card.id);
   }
 
   // Delete project-level chat messages
-  db.delete(chatMessages)
-    .where(eq(chatMessages.projectId, id))
-    .run();
+  repos.chatMessages.deleteByProjectId(id);
 
   // Delete project
-  db.delete(projects).where(eq(projects.id, id)).run();
+  repos.projects.delete(id);
 
   return NextResponse.json({ success: true });
 }

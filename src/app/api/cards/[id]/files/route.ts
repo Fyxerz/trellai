@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { files, cards } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { getLocalRepositories } from "@/lib/db/repositories";
 import { v4 as uuid } from "uuid";
 import fs from "fs";
 import path from "path";
 
+const repos = getLocalRepositories();
 const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
 
 export async function GET(
@@ -13,11 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const cardFiles = db
-    .select()
-    .from(files)
-    .where(eq(files.cardId, id))
-    .all();
+  const cardFiles = repos.files.findByCardId(id);
   return NextResponse.json(cardFiles);
 }
 
@@ -27,7 +22,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = repos.cards.findById(id);
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -64,7 +59,7 @@ export async function POST(
       createdAt: new Date().toISOString(),
     };
 
-    db.insert(files).values(record).run();
+    repos.files.create(record);
     created.push(record);
   }
 
@@ -83,11 +78,7 @@ export async function DELETE(
     return NextResponse.json({ error: "fileId is required" }, { status: 400 });
   }
 
-  const file = db
-    .select()
-    .from(files)
-    .where(and(eq(files.id, fileId), eq(files.cardId, id)))
-    .get();
+  const file = repos.files.findByIdAndCardId(fileId, id);
 
   if (!file) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -100,6 +91,6 @@ export async function DELETE(
     // File may already be gone
   }
 
-  db.delete(files).where(eq(files.id, fileId)).run();
+  repos.files.delete(fileId);
   return NextResponse.json({ success: true });
 }
