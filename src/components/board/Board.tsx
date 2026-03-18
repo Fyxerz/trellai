@@ -15,7 +15,8 @@ import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { ProjectFilesPopover } from "@/components/files/ProjectFilesPopover";
 import { useBoard } from "@/hooks/useBoard";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
+import { Loader2, ArrowLeft, FileEdit } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "planning", "production", "review", "complete"];
 
@@ -31,6 +32,7 @@ function BoardInner({ projectId }: BoardProps) {
   const [projectFiles, setProjectFiles] = useState<FileAttachment[]>([]);
   const [uploadingProjectFiles, setUploadingProjectFiles] = useState(false);
   const [boardDragOver, setBoardDragOver] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const fetchProjectFiles = useCallback(async () => {
     try {
@@ -186,6 +188,14 @@ function BoardInner({ projectId }: BoardProps) {
                 Queue
               </button>
             </div>
+            <button
+              onClick={() => setEditorOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors"
+              title="Open file editor"
+            >
+              <FileEdit className="h-3.5 w-3.5" />
+              Editor
+            </button>
             <ProjectFilesPopover
               files={projectFiles}
               onUpload={handleProjectFileUpload}
@@ -251,6 +261,12 @@ function BoardInner({ projectId }: BoardProps) {
           onCardCreated={board.refreshCards}
         />
       )}
+
+      <FileEditorDrawer
+        projectId={projectId}
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+      />
     </div>
   );
 }
