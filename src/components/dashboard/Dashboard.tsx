@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Plus, LayoutDashboard, Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { UserMenu } from "@/components/layout/UserMenu";
+
 import { ProjectCard } from "./ProjectCard";
 import { AttentionFeed } from "./AttentionFeed";
 import { TeamSection } from "./TeamSection";
@@ -56,7 +56,7 @@ export function Dashboard() {
               {showTeamFeatures && (
                 <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
               )}
-              <UserMenu />
+
             </div>
           }
         />
@@ -114,7 +114,6 @@ export function Dashboard() {
             {showTeamFeatures && (
               <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
             )}
-            <UserMenu />
           </div>
         }
       />

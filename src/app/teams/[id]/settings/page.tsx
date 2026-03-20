@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { UserMenu } from "@/components/layout/UserMenu";
+
 import { TeamSettingsPanel } from "@/components/teams/TeamSettingsPanel";
 import type { Team } from "@/types";
 
@@ -78,7 +78,6 @@ export default function TeamSettingsPage() {
           { label: team.name },
           { label: "Settings" },
         ]}
-        actions={<UserMenu />}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">

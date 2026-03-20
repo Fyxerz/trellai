@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Loader2, Mail, Check, X, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { UserMenu } from "@/components/layout/UserMenu";
+
 import { useMyInvites } from "@/hooks/useInvites";
 
 export default function InvitesPage() {
@@ -28,7 +28,6 @@ export default function InvitesPage() {
           { label: "Dashboard", href: "/" },
           { label: "Invitations" },
         ]}
-        actions={<UserMenu />}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { UserMenu } from "./UserMenu";
 
 interface Breadcrumb {
   label: string;
@@ -40,7 +41,10 @@ export function AppHeader({ breadcrumbs, actions }: AppHeaderProps) {
           </span>
         ))}
       </div>
-      {actions && <div className="flex items-center gap-3">{actions}</div>}
+      <div className="flex items-center gap-3">
+        {actions}
+        <UserMenu />
+      </div>
     </header>
   );
 }
