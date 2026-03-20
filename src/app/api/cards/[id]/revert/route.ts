@@ -22,7 +22,11 @@ export async function POST(
   try {
     await orchestrator.revertCard(id);
     const updatedCard = await repos.cards.findById(id);
-    return NextResponse.json(updatedCard);
+    return NextResponse.json({
+      ...updatedCard,
+      testResults: updatedCard?.testResults ? JSON.parse(updatedCard.testResults) : null,
+      isIcebox: !!updatedCard?.isIcebox,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Revert failed" },

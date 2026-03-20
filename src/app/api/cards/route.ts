@@ -78,5 +78,9 @@ export async function POST(req: NextRequest) {
   });
 
   const card = await repos.cards.findById(id);
-  return NextResponse.json(card, { status: 201 });
+  return NextResponse.json({
+    ...card,
+    testResults: card?.testResults ? JSON.parse(card.testResults) : null,
+    isIcebox: !!card?.isIcebox,
+  }, { status: 201 });
 }
