@@ -27,6 +27,17 @@ interface ColumnProps {
 
 export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, cardLocks }: ColumnProps) {
   const config = columnConfig[column];
+
+  // In the development column, show running cards above queued cards
+  const sortedCards = column === "production"
+    ? [...cards].sort((a, b) => {
+        const aRunning = a.agentStatus === "running" ? 0 : 1;
+        const bRunning = b.agentStatus === "running" ? 0 : 1;
+        if (aRunning !== bRunning) return aRunning - bRunning;
+        return a.position - b.position;
+      })
+    : cards;
+
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState<CardType>("feature");
@@ -70,7 +81,7 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
         <div className={`h-3 w-3 rounded-full ${config.dotColor}`} />
         <h2 className="text-base font-bold text-white">{config.label}</h2>
         <span className="ml-auto text-sm text-white/40">
-          {cards.length} card{cards.length !== 1 ? "s" : ""}
+          {sortedCards.length} card{sortedCards.length !== 1 ? "s" : ""}
         </span>
         <button className="ml-1 text-white/30 hover:text-white/60 transition-colors">
           <MoreHorizontal className="h-4 w-4" />
@@ -89,7 +100,7 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
                 : ""
             }`}
           >
-            {cards.map((card, index) => (
+            {sortedCards.map((card, index) => (
               <KanbanCard
                 key={card.id}
                 card={card}
