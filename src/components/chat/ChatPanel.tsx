@@ -5,7 +5,7 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { QuestionCard } from "./QuestionCard";
 import { AnsweredQuestionCard, isQAMessage, parseQA } from "./AnsweredQuestionCard";
-import { MessageSquare, Sparkles, Rocket } from "lucide-react";
+import { MessageSquare, Sparkles, Rocket, ChevronDown } from "lucide-react";
 import type { Column } from "@/types";
 
 interface ChatPanelProps {
@@ -23,6 +23,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
   const lastScrollTime = useRef(0);
   const scrollRAF = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const prevMessageCount = useRef(0);
 
   // Smart scroll: only auto-scroll if user is near the bottom, throttled.
@@ -51,6 +52,20 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
 
     lastScrollTime.current = now;
     container.scrollTop = container.scrollHeight;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    setShowScrollButton(distanceFromBottom > 150);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
   }, []);
 
   useEffect(() => {
@@ -110,7 +125,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
 
   return (
     <div className="flex flex-col h-full">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto overflow-x-hidden">
         <div className="space-y-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -158,6 +173,19 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
           <div ref={bottomRef} />
         </div>
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <div className="relative">
+          <button
+            onClick={scrollToBottom}
+            className="absolute -top-12 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/60 shadow-lg backdrop-blur-sm transition-all hover:bg-white/20 hover:text-white/90"
+            aria-label="Scroll to bottom"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </button>
+        </div>
+      )}
 
       {/* Move to Development button for features column */}
       {(column === "features" || column === "planning") && messages.length > 0 && !agentRunning && (
