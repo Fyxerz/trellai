@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { getAuthUser, unauthorized } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,9 @@ export interface UsageData {
  * which contain current rate limit status from Anthropic's servers.
  */
 export async function GET() {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   try {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), 15000);

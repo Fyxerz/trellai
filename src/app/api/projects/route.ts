@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
@@ -9,27 +9,23 @@ import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
 const repos = getLocalRepositories();
 
 export async function GET() {
-  // Extract the authenticated user (middleware already enforces auth)
-  let userId: string | null = null;
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
-  } catch {
-    // If Supabase auth fails, return all projects (backward compat for local dev)
-  }
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
 
   const allProjects = await repos.projects.findAll();
 
-  // Filter by userId if available (multi-tenancy)
-  const filtered = userId
-    ? allProjects.filter((p) => p.userId === userId || p.userId === null)
-    : allProjects;
+  // Filter by userId (multi-tenancy) — legacy projects with null userId remain accessible
+  const filtered = allProjects.filter(
+    (p) => p.userId === user.id || p.userId === null
+  );
 
   return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const body = await req.json();
 
   if (!body.repoPath || !existsSync(body.repoPath) || !statSync(body.repoPath).isDirectory()) {
@@ -46,16 +42,6 @@ export async function POST(req: NextRequest) {
     execSync("git init", { cwd: body.repoPath, stdio: "pipe" });
   }
 
-  // Extract the authenticated user
-  let userId: string | null = null;
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
-  } catch {
-    // Fallback: no user association
-  }
-
   const id = uuid();
   const now = new Date().toISOString();
 
@@ -64,7 +50,7 @@ export async function POST(req: NextRequest) {
     name: body.name,
     repoPath: body.repoPath,
     mode: "worktree",
-    userId,
+    userId: user.id,
     createdAt: now,
   });
 
@@ -82,11 +68,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const body = await req.json();
   const { id, name, mode } = body;
 
   if (!id) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+
+  // Verify project access
+  const hasAccess = await assertProjectAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Mode toggle guard: reject if cards are in production or review

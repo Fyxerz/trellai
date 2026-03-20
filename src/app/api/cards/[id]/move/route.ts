@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { stopPreviewServer } from "../preview/route";
 import type { Column } from "@/types";
@@ -10,7 +11,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertCardAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  }
+
   const body = await req.json();
   const { column, position } = body as {
     column: Column;

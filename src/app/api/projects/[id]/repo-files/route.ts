@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -62,7 +63,16 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertProjectAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
   const project = await repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -174,7 +184,16 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertProjectAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
   const project = await repos.projects.findById(id);
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });

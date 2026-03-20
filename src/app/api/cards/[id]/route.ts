@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -9,7 +10,16 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertCardAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  }
+
   const card = await repos.cards.findById(id);
   if (!card) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
@@ -24,7 +34,16 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertCardAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  }
+
   const body = await req.json();
   const now = new Date().toISOString();
 
@@ -55,7 +74,15 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const { id } = await params;
+
+  const hasAccess = await assertCardAccess(id, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  }
 
   // Clean up uploaded files on disk
   const card = await repos.cards.findById(id);

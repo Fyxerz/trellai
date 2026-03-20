@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
 
 const repos = getLocalRepositories();
 
 export async function GET(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json(
@@ -13,12 +17,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const hasAccess = await assertProjectAccess(projectId, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const messages = await repos.chatMessages.findByProjectId(projectId);
 
   return NextResponse.json(messages);
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const body = await req.json();
   const { action, projectId, message } = body;
 
@@ -27,6 +39,11 @@ export async function POST(req: NextRequest) {
       { error: "projectId required" },
       { status: 400 }
     );
+  }
+
+  const hasAccess = await assertProjectAccess(projectId, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {

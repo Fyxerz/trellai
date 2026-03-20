@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { submitAnswer, getPendingQuestionForCard } from "@/lib/agents/question-queue";
 
 const repos = getLocalRepositories();
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const body = await req.json();
   const { action, cardId, message } = body;
 
   try {
+    // Verify card access for actions that need a cardId
+    if (cardId) {
+      const hasAccess = await assertCardAccess(cardId, user.id);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: "Card not found. It may have been deleted." },
+          { status: 404 }
+        );
+      }
+    }
+
     // Validate card exists for actions that need it
     if (cardId && ["send_message", "save_message"].includes(action)) {
       const card = await repos.cards.findById(cardId);
@@ -121,12 +136,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) return unauthorized();
+
   const cardId = req.nextUrl.searchParams.get("cardId");
   if (!cardId) {
     return NextResponse.json(
       { error: "cardId required" },
       { status: 400 }
     );
+  }
+
+  const hasAccess = await assertCardAccess(cardId, user.id);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
 
   const messages = await repos.chatMessages.findByCardId(cardId);
