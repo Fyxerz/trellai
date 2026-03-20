@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 import { getRepositories } from "@/lib/db/repositories";
 
 /**
@@ -51,11 +52,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Create the team
+    // Create the team (authenticated client — RLS allows any logged-in user)
     const team = await repos.teams.create({ name, isPersonal: false });
 
-    // Add the creator as owner
-    await repos.teamMembers.create({
+    // Add the creator as owner.
+    // This requires the admin client because the team_members INSERT policy
+    // checks `has_team_role(...)`, which fails for a brand-new team with no
+    // members yet (chicken-and-egg). The personal-team trigger uses
+    // SECURITY DEFINER for the same reason.
+    const adminRepos = getRepositories("supabase", getSupabaseAdminClient());
+    await adminRepos.teamMembers!.create({
       teamId: team.id,
       userId: user.id,
       role: "owner",

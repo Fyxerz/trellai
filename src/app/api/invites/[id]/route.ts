@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 import { getRepositories } from "@/lib/db/repositories";
 
 /**
@@ -48,8 +49,11 @@ export async function PATCH(
     }
 
     if (action === "accept") {
-      // Add user to team
-      await repos.teamMembers.create({
+      // Add user to team.
+      // Uses admin client because the team_members INSERT policy requires
+      // has_team_role(), but the invited user isn't a member yet.
+      const adminRepos = getRepositories("supabase", getSupabaseAdminClient());
+      await adminRepos.teamMembers!.create({
         teamId: invite.teamId,
         userId: user.id,
         role: invite.role,
