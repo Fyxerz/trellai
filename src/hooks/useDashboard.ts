@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import type { Card, Project, Team } from "@/types";
 
 export interface ProjectSummary {
@@ -52,7 +53,7 @@ export function useDashboard() {
 
   // Real-time updates via socket
   useEffect(() => {
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     socket.on("agent:status", () => {

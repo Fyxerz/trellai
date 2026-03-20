@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import type { ChatMessage, ChatSegment, Column } from "@/types";
 
 export interface PendingQuestion {
@@ -123,7 +124,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     fetchStreamingState();
 
     // Connect to socket.io sidecar
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     socket.on("connect", () => {

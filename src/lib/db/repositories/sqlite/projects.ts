@@ -16,12 +16,13 @@ export class SqliteProjectRepository implements IProjectRepository {
     return db.select().from(projects).where(eq(projects.teamId, teamId)).all() as ProjectRow[];
   }
 
-  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId" | "teamId"> & { storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void> {
+  async create(data: Omit<ProjectRow, "chatSessionId" | "repoUrl" | "storageMode" | "userId" | "teamId"> & { repoUrl?: string | null; storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void> {
     db.insert(projects)
       .values({
         id: data.id,
         name: data.name,
         repoPath: data.repoPath,
+        repoUrl: data.repoUrl ?? null,
         mode: data.mode,
         storageMode: data.storageMode || "local",
         userId: data.userId ?? null,
@@ -31,10 +32,11 @@ export class SqliteProjectRepository implements IProjectRepository {
       .run();
   }
 
-  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void> {
+  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "repoUrl" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.mode !== undefined) updateData.mode = data.mode;
+    if (data.repoUrl !== undefined) updateData.repoUrl = data.repoUrl;
     if (data.chatSessionId !== undefined) updateData.chatSessionId = data.chatSessionId;
     if (data.storageMode !== undefined) updateData.storageMode = data.storageMode;
     if (data.teamId !== undefined) updateData.teamId = data.teamId;

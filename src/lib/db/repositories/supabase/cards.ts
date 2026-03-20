@@ -15,6 +15,7 @@ function toCardRow(row: Record<string, unknown>): CardRow {
     worktreePath: (row.worktree_path as string) ?? null,
     claudeSessionId: (row.claude_session_id as string) ?? null,
     agentStatus: row.agent_status as string,
+    assignedTo: (row.assigned_to as string) ?? null,
     commitSha: (row.commit_sha as string) ?? null,
     testStatus: (row.test_status as string) ?? null,
     testResults: (row.test_results as string) ?? null,
@@ -32,6 +33,7 @@ function toSnakeCase(data: Record<string, unknown>): Record<string, unknown> {
     worktreePath: "worktree_path",
     claudeSessionId: "claude_session_id",
     agentStatus: "agent_status",
+    assignedTo: "assigned_to",
     commitSha: "commit_sha",
     testStatus: "test_status",
     testResults: "test_results",
@@ -106,10 +108,11 @@ export class SupabaseCardRepository implements ICardRepository {
     return (data ?? []).map(toCardRow);
   }
 
-  async create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
+  async create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "assignedTo" | "commitSha" | "testStatus" | "testResults"> & {
     branchName?: string | null;
     worktreePath?: string | null;
     claudeSessionId?: string | null;
+    assignedTo?: string | null;
     commitSha?: string | null;
     testStatus?: string | null;
     testResults?: string | null;
@@ -126,6 +129,7 @@ export class SupabaseCardRepository implements ICardRepository {
       branch_name: data.branchName ?? null,
       worktree_path: data.worktreePath ?? null,
       claude_session_id: data.claudeSessionId ?? null,
+      assigned_to: data.assignedTo ?? null,
       commit_sha: data.commitSha ?? null,
       test_status: data.testStatus ?? null,
       test_results: data.testResults ?? null,

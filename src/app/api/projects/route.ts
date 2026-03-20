@@ -5,6 +5,7 @@ import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
 import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
+import { RepoManager } from "@/lib/agents/repo-manager";
 
 const repos = getLocalRepositories();
 
@@ -28,18 +29,37 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  if (!body.repoPath || !existsSync(body.repoPath) || !statSync(body.repoPath).isDirectory()) {
-    return NextResponse.json(
-      { error: "Repository path does not exist or is not a directory" },
-      { status: 400 }
-    );
-  }
+  const isGitUrl = RepoManager.isGitUrl(body.repoPath || "");
+  let repoPath = body.repoPath;
+  let repoUrl: string | null = null;
 
-  // Auto-init git repo if the directory isn't one yet
-  try {
-    execSync("git rev-parse --git-dir", { cwd: body.repoPath, stdio: "pipe" });
-  } catch {
-    execSync("git init", { cwd: body.repoPath, stdio: "pipe" });
+  if (isGitUrl) {
+    // GitHub URL provided — auto-clone to workspace
+    repoUrl = body.repoPath;
+    try {
+      const manager = new RepoManager();
+      repoPath = await manager.ensureRepo(repoUrl, body.name);
+    } catch (err) {
+      return NextResponse.json(
+        { error: `Failed to clone repository: ${err instanceof Error ? err.message : "Unknown error"}` },
+        { status: 400 }
+      );
+    }
+  } else {
+    // Local path — validate it exists
+    if (!repoPath || !existsSync(repoPath) || !statSync(repoPath).isDirectory()) {
+      return NextResponse.json(
+        { error: "Repository path does not exist or is not a directory" },
+        { status: 400 }
+      );
+    }
+
+    // Auto-init git repo if the directory isn't one yet
+    try {
+      execSync("git rev-parse --git-dir", { cwd: repoPath, stdio: "pipe" });
+    } catch {
+      execSync("git init", { cwd: repoPath, stdio: "pipe" });
+    }
   }
 
   const id = uuid();
@@ -48,16 +68,18 @@ export async function POST(req: NextRequest) {
   await repos.projects.create({
     id,
     name: body.name,
-    repoPath: body.repoPath,
+    repoPath,
+    repoUrl,
     mode: "worktree",
     userId: user.id,
+    teamId: body.teamId ?? null,
     createdAt: now,
   });
 
   // Generate .claude/ documentation files (non-blocking on failure)
   let docsGenerated = false;
   try {
-    const docsResult = await generateProjectDocs(body.repoPath, body.name);
+    const docsResult = await generateProjectDocs(repoPath, body.name);
     docsGenerated = docsResult.created.length > 0;
   } catch (err) {
     console.error("Failed to generate project docs:", err);

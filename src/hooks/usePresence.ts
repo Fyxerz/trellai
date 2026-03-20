@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import { getUserIdentity, type UserIdentity } from "@/lib/identity";
 import type { PresenceUser, CardLock } from "@/types";
 
@@ -41,7 +42,7 @@ export function usePresence({ projectId }: UsePresenceOptions): PresenceState {
 
   useEffect(() => {
     const identity = identityRef.current;
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     socket.on("connect", () => {

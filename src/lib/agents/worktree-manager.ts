@@ -117,7 +117,75 @@ export class WorktreeManager {
     }
   }
 
-  private getMainBranch(repoPath: string): string {
+  /**
+   * Push a branch to the remote origin.
+   * Used in shared mode after agent completes work.
+   */
+  pushBranch(repoPath: string, branchName: string): { success: boolean; error?: string } {
+    try {
+      execSync(`git push origin ${branchName}`, {
+        cwd: repoPath,
+        stdio: "pipe",
+        timeout: 60_000,
+      });
+      return { success: true };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Push the main branch to remote after a merge.
+   */
+  pushMain(repoPath: string): { success: boolean; error?: string } {
+    try {
+      const mainBranch = this.getMainBranch(repoPath);
+      execSync(`git push origin ${mainBranch}`, {
+        cwd: repoPath,
+        stdio: "pipe",
+        timeout: 60_000,
+      });
+      return { success: true };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Pull latest changes from remote on the main branch.
+   */
+  pullLatest(repoPath: string): { success: boolean; error?: string } {
+    try {
+      execSync("git pull --ff-only", {
+        cwd: repoPath,
+        stdio: "pipe",
+        timeout: 30_000,
+      });
+      return { success: true };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Delete a remote branch (cleanup after merge).
+   */
+  deleteRemoteBranch(repoPath: string, branchName: string): void {
+    try {
+      execSync(`git push origin --delete ${branchName}`, {
+        cwd: repoPath,
+        stdio: "pipe",
+        timeout: 30_000,
+      });
+    } catch {
+      // Remote branch may not exist — that's OK
+    }
+  }
+
+  getMainBranch(repoPath: string): string {
     try {
       const result = execSync(
         "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo refs/heads/main",

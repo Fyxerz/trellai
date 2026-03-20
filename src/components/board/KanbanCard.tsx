@@ -19,6 +19,7 @@ const statusBadge: Record<
   merged: { label: "Merged", bg: "bg-emerald-400/20", text: "text-emerald-300" },
   queued: { label: "Queued", bg: "bg-yellow-400/20", text: "text-yellow-300" },
   reverted: { label: "Reverted", bg: "bg-orange-400/20", text: "text-orange-300" },
+  awaiting_agent: { label: "Waiting for Agent", bg: "bg-amber-400/20", text: "text-amber-300" },
 };
 
 const typeBadge: Record<

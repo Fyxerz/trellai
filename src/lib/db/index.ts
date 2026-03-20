@@ -320,3 +320,17 @@ try {
 } catch {
   // Column already exists
 }
+
+// Migrate: add repo_url column to projects (GitHub clone URL for shared mode)
+try {
+  sqlite.exec(`ALTER TABLE projects ADD COLUMN repo_url TEXT`);
+} catch {
+  // Column already exists
+}
+
+// Migrate: add assigned_to column to cards (card assignment for shared mode)
+try {
+  sqlite.exec(`ALTER TABLE cards ADD COLUMN assigned_to TEXT`);
+} catch {
+  // Column already exists
+}

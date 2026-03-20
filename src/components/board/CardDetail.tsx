@@ -26,6 +26,7 @@ const statusBadge: Record<string, { label: string; class: string }> = {
   merged: { label: "Merged", class: "bg-emerald-500/20 text-emerald-300" },
   queued: { label: "Queued", class: "bg-yellow-500/20 text-yellow-300" },
   reverted: { label: "Reverted", class: "bg-orange-500/20 text-orange-300" },
+  awaiting_agent: { label: "Waiting for Agent", class: "bg-amber-500/20 text-amber-300" },
 };
 
 const typeBadgeConfig: Record<string, { label: string; class: string }> = {

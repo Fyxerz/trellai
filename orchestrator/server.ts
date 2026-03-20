@@ -1,8 +1,13 @@
 import { createServer } from "http";
 import { Server as SocketServer } from "socket.io";
 
-const PORT = 3001;
+const PORT = parseInt(process.env.SOCKET_PORT || "3001", 10);
 const LOCK_TIMEOUT_MS = 30_000; // 30 seconds safety net for stale locks
+
+// Parse allowed CORS origins from env (comma-separated) or default to "*"
+const CORS_ORIGINS = process.env.SOCKET_CORS_ORIGINS
+  ? process.env.SOCKET_CORS_ORIGINS.split(",").map((s) => s.trim())
+  : ["*"];
 
 // ─── Presence state ─────────────────────────────────────────────
 interface PresenceUser {
@@ -87,7 +92,9 @@ function cleanupUser(io: InstanceType<typeof SocketServer>, projectId: string, u
 
 const httpServer = createServer();
 const io = new SocketServer(httpServer, {
-  cors: { origin: "*" },
+  cors: {
+    origin: CORS_ORIGINS.length === 1 && CORS_ORIGINS[0] === "*" ? "*" : CORS_ORIGINS,
+  },
 });
 
 // Periodic cleanup of stale locks
@@ -237,6 +244,6 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[orchestrator] Socket.IO server listening on port ${PORT}`);
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`[orchestrator] Socket.IO server listening on 0.0.0.0:${PORT}`);
 });

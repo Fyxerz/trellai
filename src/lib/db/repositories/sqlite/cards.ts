@@ -39,10 +39,11 @@ export class SqliteCardRepository implements ICardRepository {
     return db.select().from(cards).where(and(...clauses)).all() as CardRow[];
   }
 
-  async create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
+  async create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "assignedTo" | "commitSha" | "testStatus" | "testResults"> & {
     branchName?: string | null;
     worktreePath?: string | null;
     claudeSessionId?: string | null;
+    assignedTo?: string | null;
     commitSha?: string | null;
     testStatus?: string | null;
     testResults?: string | null;
@@ -60,6 +61,7 @@ export class SqliteCardRepository implements ICardRepository {
         branchName: data.branchName ?? null,
         worktreePath: data.worktreePath ?? null,
         claudeSessionId: data.claudeSessionId ?? null,
+        assignedTo: data.assignedTo ?? null,
         commitSha: data.commitSha ?? null,
         testStatus: data.testStatus ?? null,
         testResults: data.testResults ?? null,

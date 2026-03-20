@@ -2,7 +2,7 @@ export type Column = "features" | "planning" | "production" | "review" | "comple
 
 export type CardType = "feature" | "fix";
 
-export type AgentStatus = "idle" | "running" | "awaiting_feedback" | "ready_for_dev" | "dev_complete" | "error" | "complete" | "merged" | "queued" | "reverted";
+export type AgentStatus = "idle" | "running" | "awaiting_feedback" | "ready_for_dev" | "dev_complete" | "error" | "complete" | "merged" | "queued" | "reverted" | "awaiting_agent";
 
 export type TestStatus = "passed" | "failed" | "partial" | "no_tests" | null;
 
@@ -26,6 +26,7 @@ export interface Project {
   id: string;
   name: string;
   repoPath: string;
+  repoUrl: string | null;
   chatSessionId: string | null;
   mode: "worktree" | "queue";
   storageMode: StorageMode;
@@ -81,6 +82,7 @@ export interface Card {
   worktreePath: string | null;
   claudeSessionId: string | null;
   agentStatus: AgentStatus;
+  assignedTo: string | null;
   commitSha: string | null;
   testStatus: TestStatus;
   testResults: TestResults | null;

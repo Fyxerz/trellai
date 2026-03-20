@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import type { Card } from "@/types";
 
 export function useAgentStatus(cards: Card[]) {
@@ -13,7 +14,7 @@ export function useAgentStatus(cards: Card[]) {
     const activeCards = cards.filter((c) => c.column === "production" || c.column === "features");
     if (activeCards.length === 0) return;
 
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     socket.on("connect", () => {

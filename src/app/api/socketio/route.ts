@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // This route just provides the client with the connection info
 export async function GET() {
   return NextResponse.json({
-    socketUrl: "http://localhost:3001",
+    socketUrl: process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001",
     status: "ok",
   });
 }

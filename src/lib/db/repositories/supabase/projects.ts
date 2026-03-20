@@ -7,6 +7,7 @@ function toProjectRow(row: Record<string, unknown>): ProjectRow {
     id: row.id as string,
     name: row.name as string,
     repoPath: row.repo_path as string,
+    repoUrl: (row.repo_url as string) ?? null,
     chatSessionId: (row.chat_session_id as string) ?? null,
     mode: row.mode as string,
     storageMode: row.storage_mode as string,
@@ -48,11 +49,12 @@ export class SupabaseProjectRepository implements IProjectRepository {
     return (data ?? []).map(toProjectRow);
   }
 
-  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId" | "teamId"> & { storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void> {
+  async create(data: Omit<ProjectRow, "chatSessionId" | "repoUrl" | "storageMode" | "userId" | "teamId"> & { repoUrl?: string | null; storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void> {
     const { error } = await this.client.from("projects").insert({
       id: data.id,
       name: data.name,
       repo_path: data.repoPath,
+      repo_url: data.repoUrl ?? null,
       mode: data.mode,
       storage_mode: data.storageMode || "supabase",
       user_id: data.userId ?? null,
@@ -62,10 +64,11 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
-  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void> {
+  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "repoUrl" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.mode !== undefined) updateData.mode = data.mode;
+    if (data.repoUrl !== undefined) updateData.repo_url = data.repoUrl;
     if (data.chatSessionId !== undefined) updateData.chat_session_id = data.chatSessionId;
     if (data.storageMode !== undefined) updateData.storage_mode = data.storageMode;
     if (data.teamId !== undefined) updateData.team_id = data.teamId;

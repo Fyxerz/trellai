@@ -14,6 +14,7 @@ export interface ProjectRow {
   id: string;
   name: string;
   repoPath: string;
+  repoUrl: string | null;
   chatSessionId: string | null;
   mode: string;
   storageMode: string;
@@ -71,6 +72,7 @@ export interface CardRow {
   worktreePath: string | null;
   claudeSessionId: string | null;
   agentStatus: string;
+  assignedTo: string | null;
   commitSha: string | null;
   testStatus: string | null;
   testResults: string | null;
@@ -116,8 +118,8 @@ export interface IProjectRepository {
   findAll(): Promise<ProjectRow[]>;
   findById(id: string): Promise<ProjectRow | undefined>;
   findByTeamId?(teamId: string): Promise<ProjectRow[]>;
-  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId" | "teamId"> & { storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void>;
-  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void>;
+  create(data: Omit<ProjectRow, "chatSessionId" | "repoUrl" | "storageMode" | "userId" | "teamId"> & { repoUrl?: string | null; storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void>;
+  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "repoUrl" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void>;
   delete(id: string): Promise<void>;
 }
 
@@ -131,10 +133,11 @@ export interface ICardRepository {
     agentStatus?: string;
     notId?: string;
   }): Promise<CardRow[]>;
-  create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "commitSha" | "testStatus" | "testResults"> & {
+  create(data: Omit<CardRow, "branchName" | "worktreePath" | "claudeSessionId" | "assignedTo" | "commitSha" | "testStatus" | "testResults"> & {
     branchName?: string | null;
     worktreePath?: string | null;
     claudeSessionId?: string | null;
+    assignedTo?: string | null;
     commitSha?: string | null;
     testStatus?: string | null;
     testResults?: string | null;

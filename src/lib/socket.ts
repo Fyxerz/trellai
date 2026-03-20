@@ -1,11 +1,13 @@
 import { io as ioClient, Socket } from "socket.io-client";
 
+const SOCKET_URL = process.env.SOCKET_URL || "http://localhost:3001";
+
 // Survive Next.js hot module reloads in dev mode
 const globalForSocket = globalThis as unknown as { socketClient?: Socket };
 
 export function getSocketClient(): Socket {
   if (!globalForSocket.socketClient) {
-    globalForSocket.socketClient = ioClient("http://localhost:3001");
+    globalForSocket.socketClient = ioClient(SOCKET_URL);
   }
   return globalForSocket.socketClient;
 }

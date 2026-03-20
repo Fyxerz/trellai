@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import type { Card, CardType, Project, Column, AgentStatus, TestResults, TestStatus } from "@/types";
 
 export function useBoard(projectId: string) {
@@ -49,7 +50,7 @@ export function useBoard(projectId: string) {
   useEffect(() => {
     if (!project) return;
 
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     socket.on("connect", () => {

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "@/lib/socket-url";
 import type { RateLimitEntry, UsageData } from "@/app/api/usage/route";
 
 export interface UsageState {
@@ -58,7 +59,7 @@ export function useUsage(): UsageState {
 
   // Subscribe to live usage updates via Socket.IO
   useEffect(() => {
-    const socket = io("http://localhost:3001");
+    const socket = io(getSocketUrl());
     socketRef.current = socket;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
