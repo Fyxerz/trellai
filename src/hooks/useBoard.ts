@@ -192,14 +192,18 @@ export function useBoard(projectId: string) {
   const refreshCards = () => fetchCards();
 
   const getColumnCards = (column: Column) => {
-    // Statuses that need attention float to top
-    const attentionStatuses = new Set(["running", "awaiting_feedback", "dev_complete", "error"]);
+    // Priority tiers: lower number = sorted higher
+    const statusPriority = (status: AgentStatus): number => {
+      if (status === "running") return 0;
+      if (status === "awaiting_feedback" || status === "dev_complete" || status === "error") return 1;
+      return 2;
+    };
     return cards
       .filter((c) => c.column === column)
       .sort((a, b) => {
-        const aNeeds = attentionStatuses.has(a.agentStatus) ? 0 : 1;
-        const bNeeds = attentionStatuses.has(b.agentStatus) ? 0 : 1;
-        if (aNeeds !== bNeeds) return aNeeds - bNeeds;
+        const aPri = statusPriority(a.agentStatus);
+        const bPri = statusPriority(b.agentStatus);
+        if (aPri !== bPri) return aPri - bPri;
         return a.position - b.position;
       });
   };
