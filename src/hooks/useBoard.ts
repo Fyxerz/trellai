@@ -193,7 +193,7 @@ export function useBoard(projectId: string) {
 
   const getColumnCards = (column: Column) => {
     // Statuses that need attention float to top
-    const attentionStatuses = new Set(["awaiting_feedback", "dev_complete", "error"]);
+    const attentionStatuses = new Set(["running", "awaiting_feedback", "dev_complete", "error"]);
     return cards
       .filter((c) => c.column === column)
       .sort((a, b) => {

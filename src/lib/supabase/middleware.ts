@@ -16,6 +16,11 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 export async function updateSession(request: NextRequest) {
+  // Dev bypass: skip all auth checks when enabled
+  if (process.env.DEV_BYPASS_AUTH === "true") {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
