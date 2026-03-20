@@ -10,10 +10,12 @@ import { Column } from "./Column";
 import { CardDetail } from "./CardDetail";
 import { ProjectChatWidget } from "@/components/chat/ProjectChatWidget";
 import { UsageCounter } from "./UsageCounter";
+import { PresenceBar } from "./PresenceBar";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { ProjectFilesPopover } from "@/components/files/ProjectFilesPopover";
 import { useBoard } from "@/hooks/useBoard";
+import { usePresence } from "@/hooks/usePresence";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
 import { Loader2, ArrowLeft, FileEdit } from "lucide-react";
@@ -26,6 +28,7 @@ interface BoardProps {
 
 function BoardInner({ projectId }: BoardProps) {
   const board = useBoard(projectId);
+  const presence = usePresence({ projectId });
   const searchParams = useSearchParams();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const deepLinked = useRef(false);
@@ -80,9 +83,20 @@ function BoardInner({ projectId }: BoardProps) {
     }
   }, [searchParams, board.cards, board.loading]);
 
+  const handleDragStart = (start: { draggableId: string }) => {
+    presence.lockCard(start.draggableId);
+  };
+
   const handleDragEnd = (result: DropResult) => {
+    // Always unlock the card after drag ends
+    presence.unlockCard(result.draggableId);
+
     if (!result.destination) return;
     const { draggableId, destination } = result;
+
+    // Don't allow moving cards locked by another user
+    if (presence.isLockedByOther(draggableId)) return;
+
     board.moveCard(
       draggableId,
       destination.droppableId as ColumnType,

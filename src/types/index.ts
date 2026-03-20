@@ -141,3 +141,19 @@ export interface BoardState {
   project: Project | null;
   cards: Card[];
 }
+
+// Re-export UserIdentity from identity module for convenience
+export type { UserIdentity } from "@/lib/identity";
+
+export interface PresenceUser {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface CardLock {
+  userId: string;
+  userName: string;
+  userColor: string;
+  lockedAt: number; // timestamp
+}
