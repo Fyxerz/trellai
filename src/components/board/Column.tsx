@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Droppable } from "@hello-pangea/dnd";
 import { KanbanCard } from "./KanbanCard";
 import { Plus, MoreHorizontal } from "lucide-react";
-import type { Card, CardType, Column as ColumnType } from "@/types";
+import type { Card, CardType, Column as ColumnType, PresenceUser, CardLock } from "@/types";
 
 const columnConfig: Record<
   ColumnType,
@@ -21,9 +21,11 @@ interface ColumnProps {
   cards: Card[];
   onCardClick: (card: Card) => void;
   onCreateCard: (title: string, description?: string, type?: CardType) => Promise<Card | undefined>;
+  cardViewers?: Record<string, PresenceUser[]>;
+  cardLocks?: Record<string, CardLock>;
 }
 
-export function Column({ column, cards, onCardClick, onCreateCard }: ColumnProps) {
+export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, cardLocks }: ColumnProps) {
   const config = columnConfig[column];
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -93,6 +95,8 @@ export function Column({ column, cards, onCardClick, onCreateCard }: ColumnProps
                 card={card}
                 index={index}
                 onClick={() => onCardClick(card)}
+                viewers={cardViewers?.[card.id]}
+                lock={cardLocks?.[card.id]}
               />
             ))}
             {provided.placeholder}

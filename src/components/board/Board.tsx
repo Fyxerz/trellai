@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import {
   DragDropContext,
   type DropResult,
+  type DragStart,
 } from "@hello-pangea/dnd";
 import Link from "next/link";
 import { Column } from "./Column";
@@ -217,7 +218,7 @@ function BoardInner({ projectId }: BoardProps) {
               uploading={uploadingProjectFiles}
             />
             <UsageCounter />
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20" />
+            <PresenceBar users={presence.users} currentUser={presence.currentUser} />
           </div>
         }
       />
@@ -236,15 +237,20 @@ function BoardInner({ projectId }: BoardProps) {
 
       {/* Columns */}
       <div className="relative z-10 flex-1 min-h-0 px-8 pb-8">
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="flex gap-5 h-full items-start">
             {COLUMNS.map((col) => (
               <Column
                 key={col}
                 column={col}
                 cards={board.getColumnCards(col)}
-                onCardClick={setSelectedCard}
+                onCardClick={(card) => {
+                  presence.viewCard(card.id);
+                  setSelectedCard(card);
+                }}
                 onCreateCard={board.createCard}
+                cardViewers={presence.cardViewers}
+                cardLocks={presence.cardLocks}
               />
             ))}
           </div>
@@ -255,7 +261,10 @@ function BoardInner({ projectId }: BoardProps) {
         <CardDetail
           card={selectedCard}
           open={!!selectedCard}
-          onClose={() => setSelectedCard(null)}
+          onClose={() => {
+            if (selectedCard) presence.unviewCard(selectedCard.id);
+            setSelectedCard(null);
+          }}
           onUpdate={async (updates) => {
             const updated = await board.updateCard(selectedCard.id, updates);
             setSelectedCard(updated);

@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Calendar, GitBranch, CheckSquare, FlaskConical } from "lucide-react";
-import type { Card, TestResults } from "@/types";
+import { Calendar, GitBranch, CheckSquare, FlaskConical, Lock } from "lucide-react";
+import { CardPresenceAvatars } from "./CardPresenceAvatars";
+import type { Card, TestResults, PresenceUser, CardLock } from "@/types";
 
 const statusBadge: Record<
   string,
@@ -63,9 +64,11 @@ interface KanbanCardProps {
   card: Card;
   index: number;
   onClick: () => void;
+  viewers?: PresenceUser[];
+  lock?: CardLock;
 }
 
-export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
+export function KanbanCard({ card, index, onClick, viewers, lock }: KanbanCardProps) {
   const [fileDragOver, setFileDragOver] = useState(false);
   const badge = typeBadge[card.type] || typeBadge.feature;
   const status = statusBadge[card.agentStatus] || statusBadge.idle;
@@ -73,6 +76,7 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
   const needsAttention = card.agentStatus === "awaiting_feedback";
   const isReadyForDev = card.agentStatus === "ready_for_dev";
   const isDevComplete = card.agentStatus === "dev_complete";
+  const isLocked = !!lock;
 
   const dateStr = new Date(card.updatedAt).toLocaleDateString("en-US", {
     month: "short",
@@ -112,7 +116,11 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
               body: formData,
             });
           }}
-          className={`glass-card rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+          className={`glass-card rounded-xl p-4 transition-all duration-200 ${
+            isLocked
+              ? "opacity-60 cursor-not-allowed ring-1 ring-yellow-400/40"
+              : "cursor-pointer"
+          } ${
             fileDragOver
               ? "ring-2 ring-violet-400/50 bg-violet-500/10"
               : snapshot.isDragging
@@ -174,9 +182,20 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
             <TestBadge status={card.testStatus} results={card.testResults} />
           )}
 
-          {/* Bottom row: status + branch/date */}
+          {/* Lock indicator */}
+          {isLocked && (
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-yellow-400/80">
+              <Lock className="h-3 w-3" />
+              <span>{lock.userName} is moving this card</span>
+            </div>
+          )}
+
+          {/* Bottom row: status + presence + branch/date */}
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
+              {viewers && viewers.length > 0 && (
+                <CardPresenceAvatars viewers={viewers} />
+              )}
               {card.agentStatus !== "idle" && (
                 <span
                   className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${status.bg} ${status.text}`}
