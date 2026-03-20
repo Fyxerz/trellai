@@ -172,6 +172,120 @@ try {
   // Column already exists
 }
 
+// Migrate: create/update users, teams, team_members, invites tables (team management)
+// The users table may already exist with a different schema (e.g., password_hash, NOT NULL name).
+// We recreate it to match the Supabase-based auth model (no password_hash, nullable name).
+try {
+  const usersInfo = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql: string } | undefined;
+  if (usersInfo?.sql && usersInfo.sql.includes("password_hash")) {
+    sqlite.pragma("foreign_keys = OFF");
+    sqlite.exec(`
+      CREATE TABLE users_new (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        name TEXT,
+        avatar_url TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT OR IGNORE INTO users_new (id, email, name, avatar_url, created_at)
+        SELECT id, email, name, avatar_url, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+    sqlite.pragma("foreign_keys = ON");
+  } else if (!usersInfo) {
+    sqlite.exec(`
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        name TEXT,
+        avatar_url TEXT,
+        created_at TEXT NOT NULL
+      );
+    `);
+  }
+} catch (e) {
+  console.error("[db] users migration error:", e);
+}
+
+// Migrate: teams table — may have old schema (created_by instead of is_personal)
+try {
+  const teamsInfo = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='teams'").get() as { sql: string } | undefined;
+  if (teamsInfo?.sql && !teamsInfo.sql.includes("is_personal")) {
+    sqlite.pragma("foreign_keys = OFF");
+    sqlite.exec(`
+      CREATE TABLE teams_new (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        is_personal INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      INSERT OR IGNORE INTO teams_new (id, name, is_personal, created_at)
+        SELECT id, name, 0, created_at FROM teams;
+      DROP TABLE teams;
+      ALTER TABLE teams_new RENAME TO teams;
+    `);
+    sqlite.pragma("foreign_keys = ON");
+  } else if (!teamsInfo) {
+    sqlite.exec(`
+      CREATE TABLE teams (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        is_personal INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+    `);
+  }
+} catch (e) {
+  console.error("[db] teams migration error:", e);
+}
+
+// Migrate: team_members table — may have joined_at instead of created_at
+try {
+  const tmInfo = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='team_members'").get() as { sql: string } | undefined;
+  if (tmInfo?.sql && tmInfo.sql.includes("joined_at")) {
+    sqlite.pragma("foreign_keys = OFF");
+    sqlite.exec(`
+      CREATE TABLE team_members_new (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'member',
+        created_at TEXT NOT NULL
+      );
+      INSERT OR IGNORE INTO team_members_new (id, team_id, user_id, role, created_at)
+        SELECT id, team_id, user_id, role, joined_at FROM team_members;
+      DROP TABLE team_members;
+      ALTER TABLE team_members_new RENAME TO team_members;
+    `);
+    sqlite.pragma("foreign_keys = ON");
+  } else if (!tmInfo) {
+    sqlite.exec(`
+      CREATE TABLE team_members (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'member',
+        created_at TEXT NOT NULL
+      );
+    `);
+  }
+} catch (e) {
+  console.error("[db] team_members migration error:", e);
+}
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS invites (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    status TEXT NOT NULL DEFAULT 'pending',
+    invited_by TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+`);
+
 // Migrate: remove stale FK constraints on user_id/team_id in projects
 // These may reference Supabase-only tables (users, teams) that don't exist in SQLite.
 try {

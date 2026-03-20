@@ -57,6 +57,45 @@ export const files = sqliteTable("files", {
   createdAt: text("created_at").notNull(),
 });
 
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  name: text("name"),
+  avatarUrl: text("avatar_url"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const teams = sqliteTable("teams", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  isPersonal: integer("is_personal", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+export const teamMembers = sqliteTable("team_members", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const invites = sqliteTable("invites", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("member"),
+  status: text("status").notNull().default("pending"),
+  invitedBy: text("invited_by").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 export const chatMessages = sqliteTable("chat_messages", {
   id: text("id").primaryKey(),
   cardId: text("card_id").references(() => cards.id, { onDelete: "cascade" }),

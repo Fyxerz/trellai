@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import type { Card, Project } from "@/types";
+import type { Card, Project, Team } from "@/types";
 
 export interface ProjectSummary {
   project: Project;
@@ -17,6 +17,7 @@ export interface ProjectSummary {
 
 export function useDashboard() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<Socket | null>(null);
 
@@ -32,16 +33,28 @@ export function useDashboard() {
     }
   }, []);
 
+  const fetchTeams = useCallback(async () => {
+    try {
+      const res = await fetch("/api/teams");
+      if (res.ok) {
+        const data = await res.json();
+        setTeams(data);
+      }
+    } catch {
+      // Teams may not be available (e.g., no Supabase configured)
+    }
+  }, []);
+
   useEffect(() => {
     fetchSummaries();
-  }, [fetchSummaries]);
+    fetchTeams();
+  }, [fetchSummaries, fetchTeams]);
 
   // Real-time updates via socket
   useEffect(() => {
     const socket = io("http://localhost:3001");
     socketRef.current = socket;
 
-    // Listen for agent status changes and refresh summaries
     socket.on("agent:status", () => {
       fetchSummaries();
     });
@@ -57,11 +70,13 @@ export function useDashboard() {
   }, [fetchSummaries]);
 
   const createProject = useCallback(
-    async (name: string, repoPath: string) => {
+    async (name: string, repoPath: string, teamId?: string) => {
+      const body: Record<string, string> = { name, repoPath };
+      if (teamId) body.teamId = teamId;
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, repoPath }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -72,6 +87,24 @@ export function useDashboard() {
       return project;
     },
     [fetchSummaries]
+  );
+
+  const createTeam = useCallback(
+    async (name: string) => {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create team");
+      }
+      const team = await res.json();
+      await fetchTeams();
+      return team as Team;
+    },
+    [fetchTeams]
   );
 
   const deleteProject = useCallback(
@@ -117,13 +150,42 @@ export function useDashboard() {
     [projects]
   );
 
+  // Group projects: personal (no teamId) vs team-assigned
+  const personalProjects = useMemo(
+    () => projects.filter((p) => !p.project.teamId),
+    [projects]
+  );
+
+  const teamProjects = useMemo(() => {
+    const map = new Map<string, ProjectSummary[]>();
+    for (const p of projects) {
+      if (p.project.teamId) {
+        const existing = map.get(p.project.teamId) || [];
+        existing.push(p);
+        map.set(p.project.teamId, existing);
+      }
+    }
+    return map;
+  }, [projects]);
+
+  const nonPersonalTeams = useMemo(
+    () => teams.filter((t) => !t.isPersonal),
+    [teams]
+  );
+
   return {
     projects,
+    teams,
+    nonPersonalTeams,
+    personalProjects,
+    teamProjects,
     loading,
     attentionCards,
     createProject,
+    createTeam,
     deleteProject,
     renameProject,
     refresh: fetchSummaries,
+    refreshTeams: fetchTeams,
   };
 }

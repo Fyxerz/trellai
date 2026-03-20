@@ -3,3 +3,7 @@ export { SqliteCardRepository } from "./cards";
 export { SqliteChecklistItemRepository } from "./checklist-items";
 export { SqliteChatMessageRepository } from "./chat-messages";
 export { SqliteFileRepository } from "./files";
+export { SqliteUserRepository } from "./users";
+export { SqliteTeamRepository } from "./teams";
+export { SqliteTeamMemberRepository } from "./team-members";
+export { SqliteInviteRepository } from "./invites";

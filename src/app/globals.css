@@ -183,17 +183,46 @@
   border-color: oklch(1 0 0 / 22%);
 }
 
-/* Spinning loader for running agents */
-@keyframes agent-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+/* Traveling border loop for running agents */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
-.agent-spinner {
-  border: 2px solid oklch(1 0 0 / 10%);
-  border-top-color: oklch(0.70 0.18 155);
-  border-radius: 50%;
-  animation: agent-spin 0.8s linear infinite;
+@keyframes border-rotate {
+  from { --border-angle: 0deg; }
+  to { --border-angle: 360deg; }
+}
+
+.border-loop {
+  border: 1px solid transparent !important;
+  background:
+    oklch(0.96 0.005 260 / 12%) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      oklch(1 0 0 / 8%) 0%,
+      oklch(1 0 0 / 8%) 55%,
+      oklch(0.70 0.18 155 / 90%) 75%,
+      oklch(0.85 0.15 165) 85%,
+      oklch(0.70 0.18 155 / 90%) 95%,
+      oklch(1 0 0 / 8%) 100%
+    ) border-box;
+  animation: border-rotate 2.5s linear infinite;
+}
+
+.border-loop:hover {
+  background:
+    oklch(0.96 0.005 260 / 18%) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      oklch(1 0 0 / 12%) 0%,
+      oklch(1 0 0 / 12%) 55%,
+      oklch(0.70 0.18 155) 75%,
+      oklch(0.90 0.15 165) 85%,
+      oklch(0.70 0.18 155) 95%,
+      oklch(1 0 0 / 12%) 100%
+    ) border-box;
 }
 
 /* Question glow for cards awaiting answers (violet/purple) */

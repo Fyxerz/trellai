@@ -10,6 +10,10 @@ import {
   SqliteChecklistItemRepository,
   SqliteChatMessageRepository,
   SqliteFileRepository,
+  SqliteUserRepository,
+  SqliteTeamRepository,
+  SqliteTeamMemberRepository,
+  SqliteInviteRepository,
 } from "./sqlite";
 import {
   SupabaseProjectRepository,
@@ -36,7 +40,10 @@ function getSqliteRepositories(): RepositoryContext {
       checklistItems: new SqliteChecklistItemRepository(),
       chatMessages: new SqliteChatMessageRepository(),
       files: new SqliteFileRepository(),
-      // users, teams, teamMembers, invites are Supabase-only
+      users: new SqliteUserRepository(),
+      teams: new SqliteTeamRepository(),
+      teamMembers: new SqliteTeamMemberRepository(),
+      invites: new SqliteInviteRepository(),
     };
   }
   return _sqliteRepos;

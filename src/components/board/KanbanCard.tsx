@@ -117,6 +117,8 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
               ? "ring-2 ring-violet-400/50 bg-violet-500/10"
               : snapshot.isDragging
               ? "shadow-2xl shadow-black/30 ring-1 ring-white/20 scale-[1.02]"
+              : isRunning
+              ? "border-loop"
               : needsAttention
               ? "question-glow"
               : isReadyForDev
@@ -170,14 +172,6 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
           {/* Test status badge */}
           {card.testStatus && card.testResults && (
             <TestBadge status={card.testStatus} results={card.testResults} />
-          )}
-
-          {/* Spinning loader for running agents */}
-          {isRunning && (
-            <div className="mt-3 flex items-center gap-2">
-              <div className="agent-spinner h-4 w-4 shrink-0" />
-              <span className="text-[11px] text-white/40">active</span>
-            </div>
           )}
 
           {/* Bottom row: status + branch/date */}

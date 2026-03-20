@@ -7,6 +7,10 @@ import { SqliteCardRepository } from "../sqlite/cards";
 import { SqliteChecklistItemRepository } from "../sqlite/checklist-items";
 import { SqliteChatMessageRepository } from "../sqlite/chat-messages";
 import { SqliteFileRepository } from "../sqlite/files";
+import { SqliteUserRepository } from "../sqlite/users";
+import { SqliteTeamRepository } from "../sqlite/teams";
+import { SqliteTeamMemberRepository } from "../sqlite/team-members";
+import { SqliteInviteRepository } from "../sqlite/invites";
 import { SupabaseProjectRepository } from "../supabase/projects";
 import { SupabaseCardRepository } from "../supabase/cards";
 import { SupabaseChecklistItemRepository } from "../supabase/checklist-items";
@@ -56,12 +60,12 @@ describe("Repository Factory", () => {
     expect(repos.invites).toBeInstanceOf(SupabaseInviteRepository);
   });
 
-  it("getRepositories('local') does not include team repositories", async () => {
+  it("getRepositories('local') includes SQLite team repositories", async () => {
     const repos = await getRepositories("local");
-    expect(repos.users).toBeUndefined();
-    expect(repos.teams).toBeUndefined();
-    expect(repos.teamMembers).toBeUndefined();
-    expect(repos.invites).toBeUndefined();
+    expect(repos.users).toBeInstanceOf(SqliteUserRepository);
+    expect(repos.teams).toBeInstanceOf(SqliteTeamRepository);
+    expect(repos.teamMembers).toBeInstanceOf(SqliteTeamMemberRepository);
+    expect(repos.invites).toBeInstanceOf(SqliteInviteRepository);
   });
 
   it("getLocalRepositories returns same singleton", async () => {
@@ -623,6 +627,393 @@ describe("SQLite Repository Interfaces", () => {
       const cardFiles = await repos.files.findByCardId(testCardId);
       expect(cardFiles.length).toBe(1);
       expect(cardFiles[0].filename).toBe("card-file.txt");
+    });
+  });
+
+  describe("IUserRepository", () => {
+    const testUserId = `test-user-${Date.now()}`;
+
+    afterEach(async () => {
+      try {
+        // Direct cleanup via DB
+        const { db } = await import("@/lib/db");
+        const { users } = await import("@/lib/db/schema");
+        const { eq } = await import("drizzle-orm");
+        db.delete(users).where(eq(users.id, testUserId)).run();
+      } catch { /* */ }
+    });
+
+    it("upsert creates a new user", async () => {
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "test@example.com",
+        name: "Test User",
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      const user = await repos.users!.findById(testUserId);
+      expect(user).toBeDefined();
+      expect(user!.email).toBe("test@example.com");
+      expect(user!.name).toBe("Test User");
+    });
+
+    it("upsert updates existing user", async () => {
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "test@example.com",
+        name: "Original",
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "updated@example.com",
+        name: "Updated",
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      const user = await repos.users!.findById(testUserId);
+      expect(user!.email).toBe("updated@example.com");
+      expect(user!.name).toBe("Updated");
+    });
+
+    it("findByEmail returns user", async () => {
+      const email = `findbyemail-${Date.now()}@example.com`;
+      await repos.users!.upsert({
+        id: testUserId,
+        email,
+        name: null,
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      const user = await repos.users!.findByEmail(email);
+      expect(user).toBeDefined();
+      expect(user!.id).toBe(testUserId);
+    });
+
+    it("update changes name", async () => {
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "test@example.com",
+        name: "Original",
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      await repos.users!.update(testUserId, { name: "New Name" });
+      const user = await repos.users!.findById(testUserId);
+      expect(user!.name).toBe("New Name");
+    });
+  });
+
+  describe("ITeamRepository", () => {
+    const testUserId = `test-user-team-${Date.now()}`;
+    let createdTeamIds: string[] = [];
+
+    beforeEach(async () => {
+      createdTeamIds = [];
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "team-test@example.com",
+        name: "Team Tester",
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    afterEach(async () => {
+      try {
+        const { db } = await import("@/lib/db");
+        const { teamMembers, teams, users } = await import("@/lib/db/schema");
+        const { eq } = await import("drizzle-orm");
+        for (const id of createdTeamIds) {
+          db.delete(teamMembers).where(eq(teamMembers.teamId, id)).run();
+          db.delete(teams).where(eq(teams.id, id)).run();
+        }
+        db.delete(users).where(eq(users.id, testUserId)).run();
+      } catch { /* */ }
+    });
+
+    it("create and findById", async () => {
+      const team = await repos.teams!.create({ name: "Test Team", isPersonal: false });
+      createdTeamIds.push(team.id);
+
+      expect(team.name).toBe("Test Team");
+      expect(team.isPersonal).toBe(false);
+
+      const found = await repos.teams!.findById(team.id);
+      expect(found).toBeDefined();
+      expect(found!.name).toBe("Test Team");
+    });
+
+    it("findByUserId returns teams user belongs to", async () => {
+      const team = await repos.teams!.create({ name: "User Team", isPersonal: false });
+      createdTeamIds.push(team.id);
+
+      await repos.teamMembers!.create({
+        teamId: team.id,
+        userId: testUserId,
+        role: "owner",
+      });
+
+      const userTeams = await repos.teams!.findByUserId(testUserId);
+      expect(userTeams.some((t) => t.id === team.id)).toBe(true);
+    });
+
+    it("findPersonalTeam returns personal team", async () => {
+      const team = await repos.teams!.create({ name: "My Personal", isPersonal: true });
+      createdTeamIds.push(team.id);
+
+      await repos.teamMembers!.create({
+        teamId: team.id,
+        userId: testUserId,
+        role: "owner",
+      });
+
+      const personal = await repos.teams!.findPersonalTeam(testUserId);
+      expect(personal).toBeDefined();
+      expect(personal!.isPersonal).toBe(true);
+    });
+
+    it("update changes team name", async () => {
+      const team = await repos.teams!.create({ name: "Original", isPersonal: false });
+      createdTeamIds.push(team.id);
+
+      await repos.teams!.update(team.id, { name: "Renamed" });
+      const found = await repos.teams!.findById(team.id);
+      expect(found!.name).toBe("Renamed");
+    });
+
+    it("delete removes team", async () => {
+      const team = await repos.teams!.create({ name: "To Delete", isPersonal: false });
+      // Don't add to createdTeamIds since we're deleting it
+
+      await repos.teams!.delete(team.id);
+      const found = await repos.teams!.findById(team.id);
+      expect(found).toBeUndefined();
+    });
+  });
+
+  describe("ITeamMemberRepository", () => {
+    const testUserId = `test-user-tm-${Date.now()}`;
+    const testUserId2 = `test-user-tm2-${Date.now()}`;
+    let testTeamId: string;
+
+    beforeEach(async () => {
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "tm1@example.com",
+        name: null,
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+      await repos.users!.upsert({
+        id: testUserId2,
+        email: "tm2@example.com",
+        name: null,
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+      const team = await repos.teams!.create({ name: "TM Test Team", isPersonal: false });
+      testTeamId = team.id;
+    });
+
+    afterEach(async () => {
+      try {
+        const { db } = await import("@/lib/db");
+        const { teamMembers, teams, users } = await import("@/lib/db/schema");
+        const { eq } = await import("drizzle-orm");
+        db.delete(teamMembers).where(eq(teamMembers.teamId, testTeamId)).run();
+        db.delete(teams).where(eq(teams.id, testTeamId)).run();
+        db.delete(users).where(eq(users.id, testUserId)).run();
+        db.delete(users).where(eq(users.id, testUserId2)).run();
+      } catch { /* */ }
+    });
+
+    it("create and findByTeamId", async () => {
+      await repos.teamMembers!.create({
+        teamId: testTeamId,
+        userId: testUserId,
+        role: "owner",
+      });
+
+      const members = await repos.teamMembers!.findByTeamId(testTeamId);
+      expect(members.length).toBe(1);
+      expect(members[0].role).toBe("owner");
+    });
+
+    it("findByTeamAndUser returns specific membership", async () => {
+      await repos.teamMembers!.create({
+        teamId: testTeamId,
+        userId: testUserId,
+        role: "admin",
+      });
+
+      const member = await repos.teamMembers!.findByTeamAndUser(testTeamId, testUserId);
+      expect(member).toBeDefined();
+      expect(member!.role).toBe("admin");
+    });
+
+    it("update changes role", async () => {
+      await repos.teamMembers!.create({
+        teamId: testTeamId,
+        userId: testUserId,
+        role: "member",
+      });
+
+      const members = await repos.teamMembers!.findByTeamId(testTeamId);
+      const member = members[0];
+
+      await repos.teamMembers!.update(member.id, { role: "admin" });
+
+      const updated = await repos.teamMembers!.findByTeamAndUser(testTeamId, testUserId);
+      expect(updated!.role).toBe("admin");
+    });
+
+    it("deleteByTeamAndUser removes membership", async () => {
+      await repos.teamMembers!.create({
+        teamId: testTeamId,
+        userId: testUserId,
+        role: "member",
+      });
+
+      await repos.teamMembers!.deleteByTeamAndUser(testTeamId, testUserId);
+
+      const member = await repos.teamMembers!.findByTeamAndUser(testTeamId, testUserId);
+      expect(member).toBeUndefined();
+    });
+
+    it("findByUserId returns all memberships for a user", async () => {
+      await repos.teamMembers!.create({
+        teamId: testTeamId,
+        userId: testUserId,
+        role: "member",
+      });
+
+      const memberships = await repos.teamMembers!.findByUserId(testUserId);
+      expect(memberships.some((m) => m.teamId === testTeamId)).toBe(true);
+    });
+  });
+
+  describe("IInviteRepository", () => {
+    const testUserId = `test-user-inv-${Date.now()}`;
+    let testTeamId: string;
+
+    beforeEach(async () => {
+      await repos.users!.upsert({
+        id: testUserId,
+        email: "inviter@example.com",
+        name: null,
+        avatarUrl: null,
+        createdAt: new Date().toISOString(),
+      });
+      const team = await repos.teams!.create({ name: "Invite Test Team", isPersonal: false });
+      testTeamId = team.id;
+    });
+
+    afterEach(async () => {
+      try {
+        const { db } = await import("@/lib/db");
+        const { invites, teamMembers, teams, users } = await import("@/lib/db/schema");
+        const { eq } = await import("drizzle-orm");
+        db.delete(invites).where(eq(invites.teamId, testTeamId)).run();
+        db.delete(teamMembers).where(eq(teamMembers.teamId, testTeamId)).run();
+        db.delete(teams).where(eq(teams.id, testTeamId)).run();
+        db.delete(users).where(eq(users.id, testUserId)).run();
+      } catch { /* */ }
+    });
+
+    it("create and findById", async () => {
+      const invite = await repos.invites!.create({
+        teamId: testTeamId,
+        email: "new@example.com",
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      expect(invite.status).toBe("pending");
+      expect(invite.email).toBe("new@example.com");
+
+      const found = await repos.invites!.findById(invite.id);
+      expect(found).toBeDefined();
+      expect(found!.email).toBe("new@example.com");
+    });
+
+    it("findByTeamId returns team invites", async () => {
+      await repos.invites!.create({
+        teamId: testTeamId,
+        email: "a@example.com",
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      const invites = await repos.invites!.findByTeamId(testTeamId);
+      expect(invites.length).toBe(1);
+    });
+
+    it("findPendingByEmail returns only pending invites", async () => {
+      const email = `pending-${Date.now()}@example.com`;
+      const invite = await repos.invites!.create({
+        teamId: testTeamId,
+        email,
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      const pending = await repos.invites!.findPendingByEmail(email);
+      expect(pending.length).toBe(1);
+
+      // Accept the invite
+      await repos.invites!.update(invite.id, { status: "accepted" });
+
+      const pendingAfter = await repos.invites!.findPendingByEmail(email);
+      expect(pendingAfter.length).toBe(0);
+    });
+
+    it("update changes status", async () => {
+      const invite = await repos.invites!.create({
+        teamId: testTeamId,
+        email: "status@example.com",
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      await repos.invites!.update(invite.id, { status: "declined" });
+
+      const found = await repos.invites!.findById(invite.id);
+      expect(found!.status).toBe("declined");
+    });
+
+    it("delete removes invite", async () => {
+      const invite = await repos.invites!.create({
+        teamId: testTeamId,
+        email: "delete@example.com",
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      await repos.invites!.delete(invite.id);
+
+      const found = await repos.invites!.findById(invite.id);
+      expect(found).toBeUndefined();
+    });
+
+    it("findByEmail returns all invites for an email", async () => {
+      const email = `all-${Date.now()}@example.com`;
+      await repos.invites!.create({
+        teamId: testTeamId,
+        email,
+        role: "member",
+        invitedBy: testUserId,
+      });
+
+      const invites = await repos.invites!.findByEmail(email);
+      expect(invites.length).toBe(1);
+      expect(invites[0].email).toBe(email);
     });
   });
 });
