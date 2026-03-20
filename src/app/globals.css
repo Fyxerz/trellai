@@ -196,17 +196,17 @@
 }
 
 .border-loop {
-  border: 1px solid transparent !important;
+  border: 2px solid transparent !important;
   background:
     oklch(0.96 0.005 260 / 12%) padding-box,
     conic-gradient(
       from var(--border-angle),
-      oklch(1 0 0 / 8%) 0%,
-      oklch(1 0 0 / 8%) 55%,
-      oklch(0.70 0.18 155 / 90%) 75%,
+      oklch(1 0 0 / 15%) 0%,
+      oklch(1 0 0 / 15%) 55%,
+      oklch(0.70 0.18 155) 75%,
       oklch(0.85 0.15 165) 85%,
-      oklch(0.70 0.18 155 / 90%) 95%,
-      oklch(1 0 0 / 8%) 100%
+      oklch(0.70 0.18 155) 95%,
+      oklch(1 0 0 / 15%) 100%
     ) border-box;
   animation: border-rotate 2.5s linear infinite;
 }
@@ -216,12 +216,12 @@
     oklch(0.96 0.005 260 / 18%) padding-box,
     conic-gradient(
       from var(--border-angle),
-      oklch(1 0 0 / 12%) 0%,
-      oklch(1 0 0 / 12%) 55%,
+      oklch(1 0 0 / 20%) 0%,
+      oklch(1 0 0 / 20%) 55%,
       oklch(0.70 0.18 155) 75%,
       oklch(0.90 0.15 165) 85%,
       oklch(0.70 0.18 155) 95%,
-      oklch(1 0 0 / 12%) 100%
+      oklch(1 0 0 / 20%) 100%
     ) border-box;
 }
 
