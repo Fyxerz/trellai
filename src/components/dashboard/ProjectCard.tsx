@@ -172,11 +172,20 @@ export function ProjectCard({ summary, onDelete, onRename }: ProjectCardProps) {
           )}
         </div>
 
-        {/* Mode badge */}
-        <div className="mt-3">
+        {/* Mode + storage badges */}
+        <div className="mt-3 flex items-center gap-2">
           <span className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/30 uppercase tracking-wider">
             {project.mode}
           </span>
+          {project.teamId ? (
+            <span className="rounded-md bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-400/70 uppercase tracking-wider">
+              Team
+            </span>
+          ) : (
+            <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider">
+              Local
+            </span>
+          )}
         </div>
       </div>
     </Link>

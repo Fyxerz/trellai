@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
+import { getOptionalUser, assertCardAccessForUser } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { submitAnswer, getPendingQuestionForCard } from "@/lib/agents/question-queue";
 
 const repos = getLocalRepositories();
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const body = await req.json();
   const { action, cardId, message } = body;
@@ -17,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     // Verify card access for actions that need a cardId
     if (cardId) {
-      const hasAccess = await assertCardAccess(cardId, user.id);
+      const hasAccess = await assertCardAccessForUser(cardId, user);
       if (!hasAccess) {
         return NextResponse.json(
           { error: "Card not found. It may have been deleted." },
@@ -144,8 +143,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const cardId = req.nextUrl.searchParams.get("cardId");
   if (!cardId) {
@@ -155,7 +153,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }

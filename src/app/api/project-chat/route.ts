@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrator } from "@/lib/agents/orchestrator";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
+import { getOptionalUser, assertProjectAccessForUser } from "@/lib/auth";
 
 const repos = getLocalRepositories();
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) {
@@ -17,7 +16,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const hasAccess = await assertProjectAccess(projectId, user.id);
+  const hasAccess = await assertProjectAccessForUser(projectId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -28,8 +27,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const body = await req.json();
   const { action, projectId, message } = body;
@@ -41,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const hasAccess = await assertProjectAccess(projectId, user.id);
+  const hasAccess = await assertProjectAccessForUser(projectId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

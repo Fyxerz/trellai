@@ -2,9 +2,12 @@
  * Shared auth helpers for API route protection.
  *
  * - `getAuthUser()` extracts and validates the Supabase session
+ * - `getOptionalUser()` same as getAuthUser — signals that null is expected (anonymous)
  * - `unauthorized()` returns a standard 401 response
  * - `assertProjectAccess()` checks if a user owns the project or is a team member
+ * - `assertProjectAccessForUser()` checks access for an optional user (anonymous or authenticated)
  * - `assertCardAccess()` checks project access via the card's parent project
+ * - `assertCardAccessForUser()` checks card access for an optional user
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -53,6 +56,13 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     return null;
   }
 }
+
+/**
+ * Get the current user if logged in, or null for anonymous users.
+ * Semantically identical to getAuthUser() but signals that null is a valid/expected state.
+ * Use this for routes that allow anonymous access to local boards.
+ */
+export const getOptionalUser = getAuthUser;
 
 // ── Response helpers ───────────────────────────────────────────────────────
 
@@ -109,6 +119,29 @@ export async function assertProjectAccess(
 }
 
 /**
+ * Check if an optional user (authenticated or anonymous) has access to a project.
+ *
+ * For anonymous users (user === null): only projects with null userId are accessible.
+ * For authenticated users: delegates to assertProjectAccess().
+ */
+export async function assertProjectAccessForUser(
+  projectId: string,
+  user: AuthUser | null
+): Promise<boolean> {
+  const repos = getLocalRepositories();
+  const project = await repos.projects.findById(projectId);
+  if (!project) return false;
+
+  // Anonymous users can only access projects with null userId (local anonymous boards)
+  if (!user) {
+    return project.userId === null;
+  }
+
+  // Authenticated users go through the normal access check
+  return assertProjectAccess(projectId, user.id);
+}
+
+/**
  * Check if a user has access to a card (via the card's parent project).
  *
  * @returns `true` if the user has access, `false` otherwise.
@@ -121,4 +154,17 @@ export async function assertCardAccess(
   const card = await repos.cards.findById(cardId);
   if (!card) return false;
   return assertProjectAccess(card.projectId, userId);
+}
+
+/**
+ * Check if an optional user (authenticated or anonymous) has access to a card.
+ */
+export async function assertCardAccessForUser(
+  cardId: string,
+  user: AuthUser | null
+): Promise<boolean> {
+  const repos = getLocalRepositories();
+  const card = await repos.cards.findById(cardId);
+  if (!card) return false;
+  return assertProjectAccessForUser(card.projectId, user);
 }

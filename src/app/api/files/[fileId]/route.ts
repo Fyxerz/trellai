@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
+import { getOptionalUser, assertProjectAccessForUser } from "@/lib/auth";
 import fs from "fs";
 
 const repos = getLocalRepositories();
@@ -9,8 +9,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const { fileId } = await params;
 
@@ -20,7 +19,7 @@ export async function GET(
   }
 
   // Verify access through the file's parent project
-  const hasAccess = await assertProjectAccess(file.projectId, user.id);
+  const hasAccess = await assertProjectAccessForUser(file.projectId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }

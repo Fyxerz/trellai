@@ -61,30 +61,36 @@ describe("Supabase Auth Configuration", () => {
     });
   });
 
-  describe("Public route detection", () => {
-    it("should identify /login as public", () => {
-      const publicRoutes = ["/login", "/register", "/auth/callback"];
-      expect(publicRoutes.some((r) => "/login".startsWith(r))).toBe(true);
+  describe("Route classification", () => {
+    const authRoutes = ["/login", "/register", "/auth/callback"];
+    const protectedRoutes = ["/teams", "/invites"];
+
+    it("should identify /login as auth route", () => {
+      expect(authRoutes.some((r) => "/login".startsWith(r))).toBe(true);
     });
 
-    it("should identify /register as public", () => {
-      const publicRoutes = ["/login", "/register", "/auth/callback"];
-      expect(publicRoutes.some((r) => "/register".startsWith(r))).toBe(true);
+    it("should identify /register as auth route", () => {
+      expect(authRoutes.some((r) => "/register".startsWith(r))).toBe(true);
     });
 
-    it("should identify /auth/callback as public", () => {
-      const publicRoutes = ["/login", "/register", "/auth/callback"];
-      expect(publicRoutes.some((r) => "/auth/callback".startsWith(r))).toBe(true);
+    it("should identify /auth/callback as auth route", () => {
+      expect(authRoutes.some((r) => "/auth/callback".startsWith(r))).toBe(true);
     });
 
-    it("should identify / as protected", () => {
-      const publicRoutes = ["/login", "/register", "/auth/callback"];
-      expect(publicRoutes.some((r) => "/".startsWith(r))).toBe(false);
+    it("should identify / as publicly accessible (anonymous allowed)", () => {
+      expect(protectedRoutes.some((r) => "/".startsWith(r))).toBe(false);
     });
 
-    it("should identify /board/123 as protected", () => {
-      const publicRoutes = ["/login", "/register", "/auth/callback"];
-      expect(publicRoutes.some((r) => "/board/123".startsWith(r))).toBe(false);
+    it("should identify /board/123 as publicly accessible (anonymous allowed)", () => {
+      expect(protectedRoutes.some((r) => "/board/123".startsWith(r))).toBe(false);
+    });
+
+    it("should identify /teams as protected (requires auth)", () => {
+      expect(protectedRoutes.some((r) => "/teams".startsWith(r))).toBe(true);
+    });
+
+    it("should identify /invites as protected (requires auth)", () => {
+      expect(protectedRoutes.some((r) => "/invites".startsWith(r))).toBe(true);
     });
   });
 });

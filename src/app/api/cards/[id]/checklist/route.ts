@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
+import { getOptionalUser, assertCardAccessForUser } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 
 const repos = getLocalRepositories();
@@ -9,12 +9,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertCardAccess(id, user.id);
+  const hasAccess = await assertCardAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -27,12 +25,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id: cardId } = await params;
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -61,12 +57,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id: cardId } = await params;
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -93,12 +87,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id: cardId } = await params;
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }

@@ -9,10 +9,13 @@ import { TeamSection } from "./TeamSection";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { TeamSwitcher } from "@/components/teams/TeamSwitcher";
 import { InviteBadge } from "@/components/teams/InviteBadge";
+import { SignInBanner } from "./SignInBanner";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Dashboard() {
   const dashboard = useDashboard();
+  const { isAnonymous, isAuthConfigured } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
   const [createForTeamId, setCreateForTeamId] = useState<string | undefined>(undefined);
 
@@ -38,6 +41,9 @@ export function Dashboard() {
     );
   }
 
+  // Only show team features when user is authenticated
+  const showTeamFeatures = !isAnonymous;
+
   // Empty state — no projects at all
   if (dashboard.projects.length === 0) {
     return (
@@ -46,12 +52,15 @@ export function Dashboard() {
           breadcrumbs={[{ label: "Dashboard" }]}
           actions={
             <div className="flex items-center gap-3">
-              <InviteBadge />
-              <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
+              {showTeamFeatures && <InviteBadge />}
+              {showTeamFeatures && (
+                <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
+              )}
               <UserMenu />
             </div>
           }
         />
+        {isAnonymous && isAuthConfigured && <SignInBanner />}
         <div className="flex flex-1 items-center justify-center">
           <div className="glass w-full max-w-md space-y-6 rounded-2xl p-8 text-center">
             <div>
@@ -62,6 +71,11 @@ export function Dashboard() {
               <p className="mt-2 text-sm text-white/50">
                 Create your first board to start orchestrating Claude Code
                 agents across your projects.
+                {isAnonymous && isAuthConfigured && (
+                  <span className="block mt-1 text-white/40">
+                    No account needed. Sign in later to collaborate.
+                  </span>
+                )}
               </p>
             </div>
             <button
@@ -89,7 +103,7 @@ export function Dashboard() {
         breadcrumbs={[{ label: "Dashboard" }]}
         actions={
           <div className="flex items-center gap-3">
-            <InviteBadge />
+            {showTeamFeatures && <InviteBadge />}
             <button
               onClick={() => openCreateForTeam(undefined)}
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-shadow"
@@ -97,11 +111,15 @@ export function Dashboard() {
               <Plus className="h-4 w-4" />
               New Board
             </button>
-            <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
+            {showTeamFeatures && (
+              <TeamSwitcher teams={dashboard.teams} onCreateTeam={dashboard.createTeam} />
+            )}
             <UserMenu />
           </div>
         }
       />
+
+      {isAnonymous && isAuthConfigured && <SignInBanner />}
 
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto px-8 pb-8">
         {/* Attention Feed */}
@@ -111,12 +129,16 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* Personal Boards Section */}
+        {/* Personal / Local Boards Section */}
         {(dashboard.personalProjects.length > 0 || !hasTeams) && (
           <div className="mb-8">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">
-                {hasTeams ? "Personal Boards" : "Your Boards"}
+                {isAnonymous
+                  ? "Local Boards"
+                  : hasTeams
+                    ? "Personal Boards"
+                    : "Your Boards"}
               </h2>
               <span className="text-sm text-white/40">
                 {dashboard.personalProjects.length} board
@@ -150,18 +172,19 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* Team Boards Sections */}
-        {dashboard.nonPersonalTeams.map((team) => (
-          <div key={team.id} id={`team-${team.id}`}>
-            <TeamSection
-              team={team}
-              projects={dashboard.teamProjects.get(team.id) || []}
-              onDelete={dashboard.deleteProject}
-              onRename={dashboard.renameProject}
-              onCreateProject={() => openCreateForTeam(team.id)}
-            />
-          </div>
-        ))}
+        {/* Team Boards Sections — only for authenticated users */}
+        {showTeamFeatures &&
+          dashboard.nonPersonalTeams.map((team) => (
+            <div key={team.id} id={`team-${team.id}`}>
+              <TeamSection
+                team={team}
+                projects={dashboard.teamProjects.get(team.id) || []}
+                onDelete={dashboard.deleteProject}
+                onRename={dashboard.renameProject}
+                onCreateProject={() => openCreateForTeam(team.id)}
+              />
+            </div>
+          ))}
       </div>
 
       <CreateProjectDialog

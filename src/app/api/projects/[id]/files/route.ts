@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
+import { getOptionalUser, assertProjectAccessForUser } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import fs from "fs";
 import path from "path";
@@ -12,12 +12,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -30,12 +28,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -88,12 +84,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

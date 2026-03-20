@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { signOut } from "@/app/(auth)/actions";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, LogIn } from "lucide-react";
 
 /**
  * Avatar with user initial or OAuth avatar image.
@@ -37,27 +38,43 @@ function UserAvatar({ user }: { user: { email?: string; user_metadata?: Record<s
 }
 
 export function UserMenu() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAnonymous, isAuthConfigured } = useAuth();
 
-  if (loading || !user) {
+  // Loading state
+  if (loading) {
     return (
       <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20 animate-pulse" />
     );
   }
 
+  // Anonymous user — show Sign In button (only if Supabase is configured)
+  if (isAnonymous) {
+    if (!isAuthConfigured) return null;
+    return (
+      <Link
+        href="/login"
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+      >
+        <LogIn className="h-4 w-4" />
+        Sign In
+      </Link>
+    );
+  }
+
+  // Authenticated user — show avatar dropdown
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-full">
-        <UserAvatar user={user} />
+        <UserAvatar user={user!} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-3 py-2">
           <p className="text-sm font-medium text-foreground truncate">
-            {user.user_metadata?.full_name ?? user.email}
+            {user!.user_metadata?.full_name ?? user!.email}
           </p>
-          {user.user_metadata?.full_name && (
+          {user!.user_metadata?.full_name && (
             <p className="text-xs text-muted-foreground truncate">
-              {user.email}
+              {user!.email}
             </p>
           )}
         </div>

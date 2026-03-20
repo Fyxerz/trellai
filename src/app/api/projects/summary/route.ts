@@ -1,43 +1,48 @@
 import { NextResponse } from "next/server";
 import { getLocalRepositories, getRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized } from "@/lib/auth";
+import { getOptionalUser } from "@/lib/auth";
 
 const repos = getLocalRepositories();
 
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const allProjects = await repos.projects.findAll();
   const allCards = await repos.cards.findAll();
 
   // Get team IDs the user belongs to (for team-based access)
   let userTeamIds = new Set<string>();
-  try {
-    const supaRepos = getRepositories("supabase");
-    if (supaRepos.teamMembers) {
-      const memberships = await supaRepos.teamMembers.findByUserId(user.id);
-      userTeamIds = new Set(memberships.map((m) => m.teamId));
-    }
-  } catch {
-    // Supabase may not be configured — fall back to local team repos
+  if (user) {
     try {
-      if (repos.teamMembers) {
-        const memberships = await repos.teamMembers.findByUserId(user.id);
+      const supaRepos = getRepositories("supabase");
+      if (supaRepos.teamMembers) {
+        const memberships = await supaRepos.teamMembers.findByUserId(user.id);
         userTeamIds = new Set(memberships.map((m) => m.teamId));
       }
     } catch {
-      // Team repos not available
+      // Supabase may not be configured — fall back to local team repos
+      try {
+        if (repos.teamMembers) {
+          const memberships = await repos.teamMembers.findByUserId(user.id);
+          userTeamIds = new Set(memberships.map((m) => m.teamId));
+        }
+      } catch {
+        // Team repos not available
+      }
     }
   }
 
-  // Filter projects: owned by user, legacy (null userId), or in user's teams
-  const userProjects = allProjects.filter(
-    (p) =>
-      p.userId === user.id ||
-      p.userId === null ||
-      (p.teamId && userTeamIds.has(p.teamId))
-  );
+  // Filter projects:
+  // - Authenticated: owned by user, legacy (null userId), or in user's teams
+  // - Anonymous: only null userId projects
+  const userProjects = user
+    ? allProjects.filter(
+        (p) =>
+          p.userId === user.id ||
+          p.userId === null ||
+          (p.teamId && userTeamIds.has(p.teamId))
+      )
+    : allProjects.filter((p) => p.userId === null);
 
   const attentionStatuses = new Set(["awaiting_feedback", "dev_complete", "error"]);
 

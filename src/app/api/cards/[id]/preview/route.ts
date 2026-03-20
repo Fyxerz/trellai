@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertCardAccess } from "@/lib/auth";
+import { getOptionalUser, assertCardAccessForUser } from "@/lib/auth";
 import { spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -34,12 +34,10 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id: cardId } = await params;
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
@@ -98,12 +96,10 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id: cardId } = await params;
 
-  const hasAccess = await assertCardAccess(cardId, user.id);
+  const hasAccess = await assertCardAccessForUser(cardId, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }

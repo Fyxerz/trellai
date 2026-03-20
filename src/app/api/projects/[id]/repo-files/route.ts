@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
+import { getOptionalUser, assertProjectAccessForUser } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -75,12 +75,10 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
@@ -196,12 +194,10 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
-
+  const user = await getOptionalUser();
   const { id } = await params;
 
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }

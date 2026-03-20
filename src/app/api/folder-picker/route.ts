@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { execSync } from "child_process";
-import { getAuthUser, unauthorized } from "@/lib/auth";
 
+/**
+ * POST /api/folder-picker — Opens a native macOS folder picker dialog.
+ * No auth required — this is a local-only operation.
+ */
 export async function POST() {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   try {
     const script = `
       set chosenFolder to POSIX path of (choose folder with prompt "Select a project folder")

@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { getAuthUser, unauthorized } from "@/lib/auth";
-
 export const dynamic = "force-dynamic";
 
 export interface RateLimitEntry {
@@ -24,10 +22,9 @@ export interface UsageData {
  *
  * Spawns a minimal Claude SDK query to capture rate_limit_event messages,
  * which contain current rate limit status from Anthropic's servers.
+ * No auth required — usage is tied to the local Claude CLI installation.
  */
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
 
   try {
     const abortController = new AbortController();

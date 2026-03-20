@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
-import { getAuthUser, unauthorized, assertProjectAccess } from "@/lib/auth";
+import { getOptionalUser, unauthorized, assertProjectAccessForUser } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
@@ -10,24 +10,29 @@ import { RepoManager } from "@/lib/agents/repo-manager";
 const repos = getLocalRepositories();
 
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const allProjects = await repos.projects.findAll();
 
-  // Filter by userId (multi-tenancy) — legacy projects with null userId remain accessible
-  const filtered = allProjects.filter(
-    (p) => p.userId === user.id || p.userId === null
-  );
+  // Filter by userId (multi-tenancy):
+  // - Authenticated: show user's projects + legacy/anonymous projects (null userId)
+  // - Anonymous: show only projects with null userId
+  const filtered = user
+    ? allProjects.filter((p) => p.userId === user.id || p.userId === null)
+    : allProjects.filter((p) => p.userId === null);
 
   return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const body = await req.json();
+
+  // Team boards require authentication
+  if (body.teamId && !user) {
+    return unauthorized();
+  }
 
   const isGitUrl = RepoManager.isGitUrl(body.repoPath || "");
   let repoPath = body.repoPath;
@@ -71,7 +76,7 @@ export async function POST(req: NextRequest) {
     repoPath,
     repoUrl,
     mode: "worktree",
-    userId: user.id,
+    userId: user?.id ?? null,
     teamId: body.teamId ?? null,
     createdAt: now,
   });
@@ -90,8 +95,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+  const user = await getOptionalUser();
 
   const body = await req.json();
   const { id, name, mode } = body;
@@ -101,7 +105,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Verify project access
-  const hasAccess = await assertProjectAccess(id, user.id);
+  const hasAccess = await assertProjectAccessForUser(id, user);
   if (!hasAccess) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
