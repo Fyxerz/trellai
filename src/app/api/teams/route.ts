@@ -30,6 +30,16 @@ export async function GET() {
 
 /**
  * POST /api/teams — Create a new team
+ *
+ * Uses the admin (service-role) client for both operations because:
+ * 1. The teams INSERT RLS policy requires `auth.uid() IS NOT NULL` —
+ *    the server-side authenticated client satisfies this, but using admin
+ *    avoids edge cases with token expiry during the request.
+ * 2. The team_members INSERT RLS policy requires `has_team_role(...)`,
+ *    which is a chicken-and-egg problem for the first member. The
+ *    `handle_new_user` trigger uses SECURITY DEFINER for the same reason.
+ *
+ * Auth is validated first via the cookie-aware server client, so this is safe.
  */
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -46,22 +56,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase", supabase);
-  if (!repos.teams || !repos.teamMembers) {
+  let adminClient;
+  try {
+    adminClient = getSupabaseAdminClient();
+  } catch {
+    return NextResponse.json(
+      { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set" },
+      { status: 500 }
+    );
+  }
+
+  const adminRepos = getRepositories("supabase", adminClient);
+  if (!adminRepos.teams || !adminRepos.teamMembers) {
     return NextResponse.json({ error: "Teams not available in this storage mode" }, { status: 501 });
   }
 
   try {
-    // Create the team (authenticated client — RLS allows any logged-in user)
-    const team = await repos.teams.create({ name, isPersonal: false });
+    // Create team + add creator as owner (both via admin to bypass RLS bootstrap issue)
+    const team = await adminRepos.teams.create({ name, isPersonal: false });
 
-    // Add the creator as owner.
-    // This requires the admin client because the team_members INSERT policy
-    // checks `has_team_role(...)`, which fails for a brand-new team with no
-    // members yet (chicken-and-egg). The personal-team trigger uses
-    // SECURITY DEFINER for the same reason.
-    const adminRepos = getRepositories("supabase", getSupabaseAdminClient());
-    await adminRepos.teamMembers!.create({
+    await adminRepos.teamMembers.create({
       teamId: team.id,
       userId: user.id,
       role: "owner",
@@ -71,6 +85,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[teams] POST error:", error);
-    return NextResponse.json({ error: "Failed to create team", detail: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

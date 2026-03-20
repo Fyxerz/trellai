@@ -52,7 +52,16 @@ export async function PATCH(
       // Add user to team.
       // Uses admin client because the team_members INSERT policy requires
       // has_team_role(), but the invited user isn't a member yet.
-      const adminRepos = getRepositories("supabase", getSupabaseAdminClient());
+      let adminClient;
+      try {
+        adminClient = getSupabaseAdminClient();
+      } catch {
+        return NextResponse.json(
+          { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set" },
+          { status: 500 }
+        );
+      }
+      const adminRepos = getRepositories("supabase", adminClient);
       await adminRepos.teamMembers!.create({
         teamId: invite.teamId,
         userId: user.id,
