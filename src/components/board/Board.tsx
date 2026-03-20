@@ -32,6 +32,7 @@ function BoardInner({ projectId }: BoardProps) {
   const presence = usePresence({ projectId });
   const searchParams = useSearchParams();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const lastCardRef = useRef<Card | null>(null);
   const deepLinked = useRef(false);
   const [projectFiles, setProjectFiles] = useState<FileAttachment[]>([]);
   const [uploadingProjectFiles, setUploadingProjectFiles] = useState(false);
@@ -70,6 +71,17 @@ function BoardInner({ projectId }: BoardProps) {
     await fetch(`/api/projects/${projectId}/files?fileId=${fileId}`, { method: "DELETE" });
     await fetchProjectFiles();
   };
+
+  // Derive up-to-date card from board.cards, falling back to cached version during re-fetches
+  const freshCard = selectedCard
+    ? board.cards.find((c) => c.id === selectedCard.id) ?? null
+    : null;
+  if (freshCard) {
+    lastCardRef.current = freshCard;
+  } else if (!selectedCard) {
+    lastCardRef.current = null;
+  }
+  const displayCard = freshCard ?? lastCardRef.current;
 
   // Deep-link: auto-open card from ?card= query param
   useEffect(() => {
@@ -257,12 +269,13 @@ function BoardInner({ projectId }: BoardProps) {
         </DragDropContext>
       </div>
 
-      {selectedCard && (
+      {displayCard && selectedCard && (
         <CardDetail
-          card={selectedCard}
-          open={!!selectedCard}
+          card={displayCard}
+          open={!!displayCard}
           onClose={() => {
             if (selectedCard) presence.unviewCard(selectedCard.id);
+            lastCardRef.current = null;
             setSelectedCard(null);
           }}
           onUpdate={async (updates) => {
@@ -271,6 +284,7 @@ function BoardInner({ projectId }: BoardProps) {
           }}
           onDelete={async () => {
             await board.deleteCard(selectedCard.id);
+            lastCardRef.current = null;
             setSelectedCard(null);
           }}
           onRefresh={board.refreshCards}
