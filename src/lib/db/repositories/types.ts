@@ -90,10 +90,20 @@ export interface ChecklistItemRow {
   createdAt: string;
 }
 
+export interface ChatConversationRow {
+  id: string;
+  projectId: string;
+  title: string;
+  chatSessionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChatMessageRow {
   id: string;
   cardId: string | null;
   projectId: string | null;
+  conversationId: string | null;
   role: string;
   content: string;
   column: string;
@@ -159,8 +169,19 @@ export interface IChatMessageRepository {
   findByCardId(cardId: string): Promise<ChatMessageRow[]>;
   findByCardIdAndColumn(cardId: string, column: string): Promise<ChatMessageRow[]>;
   findByProjectId(projectId: string): Promise<ChatMessageRow[]>;
+  findByConversationId(conversationId: string): Promise<ChatMessageRow[]>;
   create(data: ChatMessageRow): Promise<void>;
   deleteByCardId(cardId: string): Promise<void>;
+  deleteByProjectId(projectId: string): Promise<void>;
+  deleteByConversationId(conversationId: string): Promise<void>;
+}
+
+export interface IChatConversationRepository {
+  findByProjectId(projectId: string): Promise<ChatConversationRow[]>;
+  findById(id: string): Promise<ChatConversationRow | undefined>;
+  create(data: ChatConversationRow): Promise<void>;
+  update(id: string, data: Partial<Pick<ChatConversationRow, "title" | "chatSessionId" | "updatedAt">>): Promise<void>;
+  delete(id: string): Promise<void>;
   deleteByProjectId(projectId: string): Promise<void>;
 }
 
@@ -218,6 +239,7 @@ export interface RepositoryContext {
   cards: ICardRepository;
   checklistItems: IChecklistItemRepository;
   chatMessages: IChatMessageRepository;
+  chatConversations: IChatConversationRepository;
   files: IFileRepository;
   users?: IUserRepository;
   teams?: ITeamRepository;

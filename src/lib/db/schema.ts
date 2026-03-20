@@ -99,10 +99,22 @@ export const invites = sqliteTable("invites", {
   createdAt: text("created_at").notNull(),
 });
 
+export const chatConversations = sqliteTable("chat_conversations", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id),
+  title: text("title").notNull(),
+  chatSessionId: text("chat_session_id"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const chatMessages = sqliteTable("chat_messages", {
   id: text("id").primaryKey(),
   cardId: text("card_id").references(() => cards.id, { onDelete: "cascade" }),
   projectId: text("project_id").references(() => projects.id),
+  conversationId: text("conversation_id").references(() => chatConversations.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
   column: text("column").notNull(),

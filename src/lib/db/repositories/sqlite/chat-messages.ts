@@ -34,12 +34,22 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
       .all() as ChatMessageRow[];
   }
 
+  async findByConversationId(conversationId: string): Promise<ChatMessageRow[]> {
+    return db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.conversationId, conversationId))
+      .orderBy(asc(chatMessages.createdAt))
+      .all() as ChatMessageRow[];
+  }
+
   async create(data: ChatMessageRow): Promise<void> {
     db.insert(chatMessages)
       .values({
         id: data.id,
         cardId: data.cardId,
         projectId: data.projectId,
+        conversationId: data.conversationId,
         role: data.role,
         content: data.content,
         column: data.column,
@@ -58,6 +68,12 @@ export class SqliteChatMessageRepository implements IChatMessageRepository {
   async deleteByProjectId(projectId: string): Promise<void> {
     db.delete(chatMessages)
       .where(eq(chatMessages.projectId, projectId))
+      .run();
+  }
+
+  async deleteByConversationId(conversationId: string): Promise<void> {
+    db.delete(chatMessages)
+      .where(eq(chatMessages.conversationId, conversationId))
       .run();
   }
 }

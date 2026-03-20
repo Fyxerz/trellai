@@ -2,21 +2,46 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "@/lib/socket-url";
-import type { ChatMessage, ChatSegment } from "@/types";
+import type { ChatMessage, ChatSegment, ChatConversation } from "@/types";
 
 export function useProjectChat(
   projectId: string | null,
   onCardCreated?: () => void
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [agentRunning, setAgentRunning] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const segmentsRef = useRef<ChatSegment[]>([]);
+  const activeConversationIdRef = useRef<string | null>(null);
 
-  const fetchMessages = useCallback(async () => {
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  const fetchConversations = useCallback(async () => {
     if (!projectId) return;
-    const res = await fetch(`/api/project-chat?projectId=${projectId}`);
+    const res = await fetch("/api/project-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "list_conversations", projectId }),
+    });
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      setConversations(data);
+      return data as ChatConversation[];
+    }
+    return [] as ChatConversation[];
+  }, [projectId]);
+
+  const fetchMessages = useCallback(async (conversationId?: string | null) => {
+    if (!projectId) return;
+    const params = new URLSearchParams({ projectId });
+    if (conversationId) params.set("conversationId", conversationId);
+    const res = await fetch(`/api/project-chat?${params}`);
     const data = await res.json();
     setMessages(data);
   }, [projectId]);
@@ -32,10 +57,28 @@ export function useProjectChat(
     setAgentRunning(data.running);
   }, [projectId]);
 
+  // Load conversations on mount, select most recent
   useEffect(() => {
     if (!projectId) return;
-    fetchMessages();
-    fetchAgentStatus();
+
+    const init = async () => {
+      const convs = await fetchConversations();
+      await fetchAgentStatus();
+
+      if (convs && convs.length > 0) {
+        setActiveConversationId(convs[0].id);
+        await fetchMessages(convs[0].id);
+      } else {
+        setMessages([]);
+        setActiveConversationId(null);
+      }
+    };
+    init();
+  }, [projectId, fetchConversations, fetchMessages, fetchAgentStatus]);
+
+  // Socket.IO for real-time updates
+  useEffect(() => {
+    if (!projectId) return;
 
     const socket = io(getSocketUrl());
     socketRef.current = socket;
@@ -46,6 +89,8 @@ export function useProjectChat(
 
     socket.on("agent:output", (data) => {
       if (data.projectId !== projectId) return;
+      // Only show output for the active conversation
+      if (data.conversationId && data.conversationId !== activeConversationIdRef.current) return;
 
       if (data.type === "system") {
         setMessages((prev) => [
@@ -54,6 +99,7 @@ export function useProjectChat(
             id: crypto.randomUUID(),
             cardId: null,
             projectId,
+            conversationId: data.conversationId || null,
             role: "system",
             content: data.content,
             column: "project",
@@ -76,6 +122,7 @@ export function useProjectChat(
               id: crypto.randomUUID(),
               cardId: null,
               projectId,
+              conversationId: data.conversationId || null,
               role: "assistant" as const,
               content: data.content,
               column: "project",
@@ -142,6 +189,7 @@ export function useProjectChat(
             id: streamingId,
             cardId: null,
             projectId,
+            conversationId: data.conversationId || null,
             role: "assistant" as const,
             content: plainText,
             column: "project",
@@ -188,7 +236,7 @@ export function useProjectChat(
       socket.emit("leave:project", projectId);
       socket.disconnect();
     };
-  }, [projectId, fetchMessages]);
+  }, [projectId]);
 
   const sendMessage = async (content: string) => {
     if (!projectId) return;
@@ -200,6 +248,7 @@ export function useProjectChat(
         id: crypto.randomUUID(),
         cardId: null,
         projectId,
+        conversationId: activeConversationId,
         role: "user",
         content,
         column: "project",
@@ -216,6 +265,7 @@ export function useProjectChat(
           action: "send_message",
           projectId,
           message: content,
+          conversationId: activeConversationId,
         }),
       });
       const data = await res.json();
@@ -233,6 +283,10 @@ export function useProjectChat(
             createdAt: new Date().toISOString(),
           },
         ]);
+      } else if (data.conversationId && data.conversationId !== activeConversationId) {
+        // A new conversation was created
+        setActiveConversationId(data.conversationId);
+        fetchConversations();
       }
     } catch (err) {
       setStreaming(false);
@@ -251,6 +305,42 @@ export function useProjectChat(
     }
   };
 
+  const selectConversation = useCallback(async (conversationId: string) => {
+    setActiveConversationId(conversationId);
+    setStreaming(false);
+    segmentsRef.current = [];
+    await fetchMessages(conversationId);
+  }, [fetchMessages]);
+
+  const startNewConversation = useCallback(() => {
+    setActiveConversationId(null);
+    setMessages([]);
+    setStreaming(false);
+    segmentsRef.current = [];
+  }, []);
+
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    if (!projectId) return;
+    await fetch("/api/project-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "delete_conversation",
+        projectId,
+        conversationId,
+      }),
+    });
+
+    // If we deleted the active conversation, clear the view
+    if (conversationId === activeConversationId) {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+
+    // Refresh conversation list
+    await fetchConversations();
+  }, [projectId, activeConversationId, fetchConversations]);
+
   const clearChat = async () => {
     if (!projectId) return;
     await fetch("/api/project-chat", {
@@ -259,9 +349,23 @@ export function useProjectChat(
       body: JSON.stringify({ action: "clear", projectId }),
     });
     setMessages([]);
+    setConversations([]);
+    setActiveConversationId(null);
     setStreaming(false);
     setAgentRunning(false);
   };
 
-  return { messages, agentRunning, streaming, sendMessage, clearChat };
+  return {
+    messages,
+    conversations,
+    activeConversationId,
+    agentRunning,
+    streaming,
+    sendMessage,
+    selectConversation,
+    startNewConversation,
+    deleteConversation,
+    clearChat,
+    refreshConversations: fetchConversations,
+  };
 }

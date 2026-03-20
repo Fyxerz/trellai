@@ -6,6 +6,7 @@ function toChatMessageRow(row: Record<string, unknown>): ChatMessageRow {
     id: row.id as string,
     cardId: (row.card_id as string) ?? null,
     projectId: (row.project_id as string) ?? null,
+    conversationId: (row.conversation_id as string) ?? null,
     role: row.role as string,
     content: row.content as string,
     column: row.column as string,
@@ -49,11 +50,22 @@ export class SupabaseChatMessageRepository implements IChatMessageRepository {
     return (data ?? []).map(toChatMessageRow);
   }
 
+  async findByConversationId(conversationId: string): Promise<ChatMessageRow[]> {
+    const { data, error } = await this.client
+      .from("chat_messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(toChatMessageRow);
+  }
+
   async create(data: ChatMessageRow): Promise<void> {
     const { error } = await this.client.from("chat_messages").insert({
       id: data.id,
       card_id: data.cardId,
       project_id: data.projectId,
+      conversation_id: data.conversationId,
       role: data.role,
       content: data.content,
       column: data.column,
@@ -76,6 +88,14 @@ export class SupabaseChatMessageRepository implements IChatMessageRepository {
       .from("chat_messages")
       .delete()
       .eq("project_id", projectId);
+    if (error) throw error;
+  }
+
+  async deleteByConversationId(conversationId: string): Promise<void> {
+    const { error } = await this.client
+      .from("chat_messages")
+      .delete()
+      .eq("conversation_id", conversationId);
     if (error) throw error;
   }
 }

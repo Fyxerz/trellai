@@ -113,12 +113,22 @@ export interface ChatMessage {
   id: string;
   cardId: string | null;
   projectId?: string | null;
+  conversationId?: string | null;
   role: "user" | "assistant" | "system";
   content: string;
   column: Column | "project";
   messageType?: string | null;
   segments?: ChatSegment[];
   createdAt: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  projectId: string;
+  title: string;
+  chatSessionId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FileAttachment {

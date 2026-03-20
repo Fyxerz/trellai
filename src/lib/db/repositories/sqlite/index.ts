@@ -2,6 +2,7 @@ export { SqliteProjectRepository } from "./projects";
 export { SqliteCardRepository } from "./cards";
 export { SqliteChecklistItemRepository } from "./checklist-items";
 export { SqliteChatMessageRepository } from "./chat-messages";
+export { SqliteChatConversationRepository } from "./chat-conversations";
 export { SqliteFileRepository } from "./files";
 export { SqliteUserRepository } from "./users";
 export { SqliteTeamRepository } from "./teams";

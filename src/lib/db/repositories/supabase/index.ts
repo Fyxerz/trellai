@@ -2,6 +2,7 @@ export { SupabaseProjectRepository } from "./projects";
 export { SupabaseCardRepository } from "./cards";
 export { SupabaseChecklistItemRepository } from "./checklist-items";
 export { SupabaseChatMessageRepository } from "./chat-messages";
+export { SupabaseChatConversationRepository } from "./chat-conversations";
 export { SupabaseFileRepository } from "./files";
 export { SupabaseUserRepository } from "./users";
 export { SupabaseTeamRepository } from "./teams";

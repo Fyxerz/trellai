@@ -1094,12 +1094,13 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
 
   // ── Project Chat ──────────────────────────────────────────────────────
 
-  private async logProject(projectId: string, content: string) {
+  private async logProject(projectId: string, content: string, conversationId?: string | null) {
     console.log(`[orchestrator] logProject(${projectId}): ${content}`);
     const msg = {
       id: uuid(),
       cardId: null as string | null,
       projectId: projectId as string | null,
+      conversationId: conversationId || null as string | null,
       role: "system",
       content,
       column: "project",
@@ -1119,22 +1120,46 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     }
   }
 
-  async sendProjectMessage(projectId: string, message: string) {
-    console.log(`[orchestrator] sendProjectMessage(${projectId}): ${message.substring(0, 80)}...`);
+  async sendProjectMessage(projectId: string, message: string, conversationId?: string) {
+    console.log(`[orchestrator] sendProjectMessage(${projectId}, conv=${conversationId}): ${message.substring(0, 80)}...`);
     const project = await repos.projects.findById(projectId);
     if (!project) throw new Error("Project not found");
+
+    // Ensure we have a conversation
+    let activeConversationId = conversationId;
+    if (!activeConversationId) {
+      // Create a new conversation
+      const convId = uuid();
+      const title = message.length > 60 ? message.substring(0, 57) + "..." : message;
+      const now = new Date().toISOString();
+      await repos.chatConversations.create({
+        id: convId,
+        projectId,
+        title,
+        chatSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      activeConversationId = convId;
+    }
 
     // Save user message
     await repos.chatMessages.create({
         id: uuid(),
         cardId: null,
         projectId,
+        conversationId: activeConversationId,
         role: "user",
         content: message,
         column: "project",
         messageType: null,
-              createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       });
+
+    // Update conversation timestamp
+    await repos.chatConversations.update(activeConversationId, {
+      updatedAt: new Date().toISOString(),
+    });
 
     // Stop existing process if running
     const proc = this.projectProcesses.get(projectId);
@@ -1143,20 +1168,24 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       this.projectProcesses.delete(projectId);
     }
 
-    const hasValidSession = !!project.chatSessionId;
+    // Get conversation to check for session
+    const conversation = await repos.chatConversations.findById(activeConversationId);
+    const hasValidSession = !!conversation?.chatSessionId;
 
     if (!hasValidSession) {
       const sessionId = uuid();
-      await repos.projects.update(projectId, { chatSessionId: sessionId });
+      await repos.chatConversations.update(activeConversationId, { chatSessionId: sessionId });
 
       const projectFilesContext = await this.getFilesContext(projectId);
       this.spawnProjectAgent(projectId, project.repoPath, message, {
         sessionId,
         systemPrompt: PROJECT_CHAT_SYSTEM_PROMPT + projectFilesContext,
+        conversationId: activeConversationId,
       });
     } else {
       this.spawnProjectAgent(projectId, project.repoPath, message, {
-        resumeSessionId: project.chatSessionId!,
+        resumeSessionId: conversation!.chatSessionId!,
+        conversationId: activeConversationId,
       });
     }
 
@@ -1165,6 +1194,8 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     } catch {
       // Socket may not be available
     }
+
+    return { conversationId: activeConversationId };
   }
 
   private spawnProjectAgent(
@@ -1175,10 +1206,12 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       sessionId?: string;
       resumeSessionId?: string;
       systemPrompt?: string;
+      conversationId?: string;
     }
   ) {
     const proc = new ClaudeProcess();
     this.projectProcesses.set(projectId, proc);
+    const conversationId = options.conversationId || null;
 
     proc.on("output", async (data) => {
       const content = data.content;
@@ -1188,6 +1221,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
       try {
         emitToProject(projectId, "agent:output", {
           projectId,
+          conversationId,
           ...data,
           timestamp: new Date().toISOString(),
         });
@@ -1202,6 +1236,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
               id: uuid(),
               cardId: null,
               projectId,
+              conversationId,
               role: "assistant",
               content: data.content,
               column: "project",
@@ -1209,11 +1244,18 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
               createdAt: new Date().toISOString(),
             });
         }
+        // Update conversation timestamp
+        if (conversationId) {
+          await repos.chatConversations.update(conversationId, {
+            updatedAt: new Date().toISOString(),
+          });
+        }
       } else if (data.type === "system") {
         await repos.chatMessages.create({
             id: uuid(),
             cardId: null,
             projectId,
+            conversationId,
             role: "system",
             content: data.content,
             column: "project",
@@ -1225,6 +1267,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             id: uuid(),
             cardId: null,
             projectId,
+            conversationId,
             role: "assistant",
             content: data.content,
             column: "project",
@@ -1236,6 +1279,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             id: uuid(),
             cardId: null,
             projectId,
+            conversationId,
             role: "assistant",
             content: data.content,
             column: "project",
@@ -1247,6 +1291,7 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
             id: uuid(),
             cardId: null,
             projectId,
+            conversationId,
             role: "assistant",
             content: data.content,
             column: "project",
@@ -1258,6 +1303,11 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
 
     proc.on("session", async (data: { sessionId: string }) => {
       console.log(`[orchestrator] projectSession(${projectId}): ${data.sessionId}`);
+      // Store session on conversation rather than project
+      if (conversationId) {
+        await repos.chatConversations.update(conversationId, { chatSessionId: data.sessionId });
+      }
+      // Keep project-level for backward compat
       await repos.projects.update(projectId, { chatSessionId: data.sessionId });
     });
 
@@ -1288,6 +1338,9 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
         this.logProject(projectId, `Agent exited with code ${code}.`);
         // Clear session on error so next message starts fresh
         await repos.projects.update(projectId, { chatSessionId: null });
+        if (conversationId) {
+          await repos.chatConversations.update(conversationId, { chatSessionId: null });
+        }
       }
 
       try {
@@ -1331,8 +1384,22 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     // Delete all project-level chat messages
     await repos.chatMessages.deleteByProjectId(projectId);
 
+    // Delete all conversations
+    await repos.chatConversations.deleteByProjectId(projectId);
+
     // Clear session ID
     await repos.projects.update(projectId, { chatSessionId: null });
+  }
+
+  async deleteConversation(projectId: string, conversationId: string) {
+    // Stop agent if it's running for this project
+    this.stopProjectAgent(projectId);
+
+    // Delete messages for this conversation
+    await repos.chatMessages.deleteByConversationId(conversationId);
+
+    // Delete the conversation
+    await repos.chatConversations.delete(conversationId);
   }
 }
 

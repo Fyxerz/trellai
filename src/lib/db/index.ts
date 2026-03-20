@@ -334,3 +334,22 @@ try {
 } catch {
   // Column already exists
 }
+
+// Migrate: create chat_conversations table for project chat history
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS chat_conversations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    title TEXT NOT NULL,
+    chat_session_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+
+// Migrate: add conversation_id column to chat_messages
+try {
+  sqlite.exec(`ALTER TABLE chat_messages ADD COLUMN conversation_id TEXT REFERENCES chat_conversations(id) ON DELETE CASCADE`);
+} catch {
+  // Column already exists
+}
