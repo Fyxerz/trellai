@@ -320,7 +320,7 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       },
     ]);
 
-    if (column === "features" || column === "production") {
+    if (column === "features" || column === "planning" || column === "production") {
       // Unified path: all agent interactions go through send_message
       setStreaming(true);
       try {

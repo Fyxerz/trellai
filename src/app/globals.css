@@ -185,8 +185,8 @@
 
 /* Breathing glow for running agents */
 @keyframes agent-breathe {
-  0%, 100% { box-shadow: 0 0 0 1px oklch(0.55 0.15 180 / 30%), 0 0 8px oklch(0.55 0.15 180 / 10%); }
-  50% { box-shadow: 0 0 0 1px oklch(0.65 0.18 165 / 60%), 0 0 16px oklch(0.65 0.18 165 / 20%); }
+  0%, 100% { box-shadow: 0 0 0 1px oklch(0.60 0.18 170 / 45%), 0 0 12px oklch(0.60 0.18 170 / 20%), 0 0 24px oklch(0.60 0.18 170 / 8%); }
+  50% { box-shadow: 0 0 0 1.5px oklch(0.70 0.20 165 / 75%), 0 0 20px oklch(0.70 0.20 165 / 30%), 0 0 40px oklch(0.70 0.20 165 / 12%); }
 }
 
 .border-loop {

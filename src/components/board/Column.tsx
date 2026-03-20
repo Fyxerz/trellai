@@ -20,7 +20,7 @@ interface ColumnProps {
   column: ColumnType;
   cards: Card[];
   onCardClick: (card: Card) => void;
-  onCreateCard: (title: string, description?: string, type?: CardType) => Promise<Card | undefined>;
+  onCreateCard: (title: string, description?: string, type?: CardType, column?: ColumnType) => Promise<Card | undefined>;
   cardViewers?: Record<string, PresenceUser[]>;
   cardLocks?: Record<string, CardLock>;
 }
@@ -46,7 +46,7 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
       setNewType("feature");
       return;
     }
-    await onCreateCard(title, "", newType);
+    await onCreateCard(title, "", newType, column);
     setNewTitle("");
     // Keep adding mode open for rapid entry
     inputRef.current?.focus();

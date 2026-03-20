@@ -51,6 +51,14 @@ export async function POST(req: NextRequest) {
           messageType: null,
           createdAt: new Date().toISOString(),
         });
+
+        // Auto-move backlog → planning when sending a message
+        if (card && card.column === "features") {
+          await repos.cards.update(cardId, { column: "planning", updatedAt: new Date().toISOString() });
+          const { emitToCard } = await import("@/lib/socket");
+          emitToCard(cardId, "card:auto-move", { cardId, column: "planning" });
+        }
+
         await orchestrator.sendMessage(cardId, message);
         return NextResponse.json({ success: true });
       }

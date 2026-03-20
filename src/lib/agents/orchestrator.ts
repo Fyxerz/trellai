@@ -160,7 +160,7 @@ class Orchestrator {
     // If previous session errored out, clear stale session ID and start fresh
     const hasValidSession = card.claudeSessionId && card.agentStatus !== "error";
 
-    if (card.column === "features") {
+    if (card.column === "features" || card.column === "planning") {
       if (!hasValidSession) {
         // First message or recovery from error: spawn new session
         const sessionId = uuid();
