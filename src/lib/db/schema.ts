@@ -29,6 +29,7 @@ export const cards = sqliteTable("cards", {
   commitSha: text("commit_sha"),
   testStatus: text("test_status"),
   testResults: text("test_results"),
+  isIcebox: integer("is_icebox").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

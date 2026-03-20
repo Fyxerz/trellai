@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     return {
       ...card,
       testResults: card.testResults ? JSON.parse(card.testResults) : null,
+      isIcebox: !!card.isIcebox,
       checklistTotal: items.length,
       checklistChecked: items.filter((i) => i.checked).length,
     };

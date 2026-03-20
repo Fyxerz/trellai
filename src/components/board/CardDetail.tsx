@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { DiffViewer } from "@/components/review/DiffViewer";
-import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2, FlaskConical, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2, FlaskConical, CheckCircle2, XCircle, MinusCircle, Snowflake } from "lucide-react";
 import { Checklist } from "./Checklist";
 import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { FileList } from "@/components/files/FileList";
@@ -272,6 +272,18 @@ export function CardDetail({
                 title="Click to toggle type"
               >
                 {(typeBadgeConfig[card.type] || typeBadgeConfig.feature).label}
+              </button>
+              <button
+                onClick={() => onUpdate({ isIcebox: !card.isIcebox })}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity ${
+                  card.isIcebox
+                    ? "bg-cyan-500/20 text-cyan-300"
+                    : "bg-white/8 text-white/30"
+                }`}
+                title="Click to toggle icebox — iceboxed cards sink to bottom of column"
+              >
+                <Snowflake className="h-3 w-3" />
+                Icebox
               </button>
               <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${status.class}`}>
                 {status.label}

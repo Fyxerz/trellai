@@ -27,6 +27,7 @@ export async function GET(
   return NextResponse.json({
     ...card,
     testResults: card.testResults ? JSON.parse(card.testResults) : null,
+    isIcebox: !!card.isIcebox,
   });
 }
 
@@ -60,6 +61,8 @@ export async function PATCH(
     updateData.claudeSessionId = body.claudeSessionId;
   if (body.agentStatus !== undefined)
     updateData.agentStatus = body.agentStatus;
+  if (body.isIcebox !== undefined)
+    updateData.isIcebox = body.isIcebox ? 1 : 0;
 
   await repos.cards.update(id, updateData);
 
@@ -67,6 +70,7 @@ export async function PATCH(
   return NextResponse.json({
     ...card,
     testResults: card?.testResults ? JSON.parse(card.testResults) : null,
+    isIcebox: !!card?.isIcebox,
   });
 }
 

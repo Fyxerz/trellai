@@ -18,6 +18,7 @@ function toCardRow(row: Record<string, unknown>): CardRow {
     commitSha: (row.commit_sha as string) ?? null,
     testStatus: (row.test_status as string) ?? null,
     testResults: (row.test_results as string) ?? null,
+    isIcebox: (row.is_icebox as number) ?? 0,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -34,6 +35,7 @@ function toSnakeCase(data: Record<string, unknown>): Record<string, unknown> {
     commitSha: "commit_sha",
     testStatus: "test_status",
     testResults: "test_results",
+    isIcebox: "is_icebox",
     createdAt: "created_at",
     updatedAt: "updated_at",
   };

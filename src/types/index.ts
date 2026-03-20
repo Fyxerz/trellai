@@ -84,6 +84,7 @@ export interface Card {
   commitSha: string | null;
   testStatus: TestStatus;
   testResults: TestResults | null;
+  isIcebox: boolean;
   createdAt: string;
   updatedAt: string;
   checklistTotal?: number;

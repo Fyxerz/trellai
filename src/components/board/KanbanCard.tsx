@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Calendar, GitBranch, CheckSquare, FlaskConical, Lock } from "lucide-react";
+import { Calendar, GitBranch, CheckSquare, FlaskConical, Lock, Snowflake } from "lucide-react";
 import { CardPresenceAvatars } from "./CardPresenceAvatars";
 import type { Card, TestResults, PresenceUser, CardLock } from "@/types";
 
@@ -119,6 +119,8 @@ export function KanbanCard({ card, index, onClick, viewers, lock }: KanbanCardPr
           className={`glass-card rounded-xl p-4 transition-all duration-200 ${
             isLocked
               ? "opacity-60 cursor-not-allowed ring-1 ring-yellow-400/40"
+              : card.isIcebox
+              ? "opacity-75 cursor-pointer"
               : "cursor-pointer"
           } ${
             fileDragOver
@@ -143,7 +145,12 @@ export function KanbanCard({ card, index, onClick, viewers, lock }: KanbanCardPr
             >
               {badge.label}
             </span>
-            <h3 className="text-sm font-semibold leading-snug text-white/90">
+            {card.isIcebox && (
+              <span className="shrink-0 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold bg-cyan-500/20 text-cyan-300">
+                <Snowflake className="h-3 w-3" />
+              </span>
+            )}
+            <h3 className={`text-sm font-semibold leading-snug ${card.isIcebox ? "text-white/60" : "text-white/90"}`}>
               {card.title}
             </h3>
           </div>

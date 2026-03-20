@@ -194,16 +194,18 @@ export function useBoard(projectId: string) {
 
   const getColumnCards = (column: Column) => {
     // Priority tiers: lower number = sorted higher
-    const statusPriority = (status: AgentStatus): number => {
-      if (status === "running") return 0;
-      if (status === "awaiting_feedback" || status === "dev_complete" || status === "error") return 1;
+    // Icebox cards always sink to the bottom (tier 3)
+    const statusPriority = (card: Card): number => {
+      if (card.isIcebox) return 3;
+      if (card.agentStatus === "running") return 0;
+      if (card.agentStatus === "awaiting_feedback" || card.agentStatus === "dev_complete" || card.agentStatus === "error") return 1;
       return 2;
     };
     return cards
       .filter((c) => c.column === column)
       .sort((a, b) => {
-        const aPri = statusPriority(a.agentStatus);
-        const bPri = statusPriority(b.agentStatus);
+        const aPri = statusPriority(a);
+        const bPri = statusPriority(b);
         if (aPri !== bPri) return aPri - bPri;
         return a.position - b.position;
       });

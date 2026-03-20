@@ -313,3 +313,10 @@ try {
 } catch (e) {
   console.error("[db] projects FK cleanup error:", e);
 }
+
+// Migrate: add is_icebox column to cards (icebox badge toggle)
+try {
+  sqlite.exec(`ALTER TABLE cards ADD COLUMN is_icebox INTEGER NOT NULL DEFAULT 0`);
+} catch {
+  // Column already exists
+}

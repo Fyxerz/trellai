@@ -74,6 +74,7 @@ export interface CardRow {
   commitSha: string | null;
   testStatus: string | null;
   testResults: string | null;
+  isIcebox: number;
   createdAt: string;
   updatedAt: string;
 }
