@@ -12,6 +12,10 @@ import { SupabaseCardRepository } from "../supabase/cards";
 import { SupabaseChecklistItemRepository } from "../supabase/checklist-items";
 import { SupabaseChatMessageRepository } from "../supabase/chat-messages";
 import { SupabaseFileRepository } from "../supabase/files";
+import { SupabaseUserRepository } from "../supabase/users";
+import { SupabaseTeamRepository } from "../supabase/teams";
+import { SupabaseTeamMemberRepository } from "../supabase/team-members";
+import { SupabaseInviteRepository } from "../supabase/invites";
 import { getLocalRepositories, getRepositories } from "../index";
 import type { RepositoryContext } from "../types";
 
@@ -42,6 +46,22 @@ describe("Repository Factory", () => {
     expect(repos.checklistItems).toBeInstanceOf(SupabaseChecklistItemRepository);
     expect(repos.chatMessages).toBeInstanceOf(SupabaseChatMessageRepository);
     expect(repos.files).toBeInstanceOf(SupabaseFileRepository);
+  });
+
+  it("getRepositories('supabase') includes team repositories", async () => {
+    const repos = await getRepositories("supabase");
+    expect(repos.users).toBeInstanceOf(SupabaseUserRepository);
+    expect(repos.teams).toBeInstanceOf(SupabaseTeamRepository);
+    expect(repos.teamMembers).toBeInstanceOf(SupabaseTeamMemberRepository);
+    expect(repos.invites).toBeInstanceOf(SupabaseInviteRepository);
+  });
+
+  it("getRepositories('local') does not include team repositories", async () => {
+    const repos = await getRepositories("local");
+    expect(repos.users).toBeUndefined();
+    expect(repos.teams).toBeUndefined();
+    expect(repos.teamMembers).toBeUndefined();
+    expect(repos.invites).toBeUndefined();
   });
 
   it("getLocalRepositories returns same singleton", async () => {
@@ -86,6 +106,66 @@ describe("SQLite Repository Interfaces", () => {
       expect(project!.mode).toBe("worktree");
       expect(project!.storageMode).toBe("local");
       expect(project!.chatSessionId).toBeNull();
+    });
+
+    it("create with teamId", async () => {
+      const teamId = "test-team-123";
+      await repos.projects.create({
+        id: testProjectId,
+        name: "Team Project",
+        repoPath: "/tmp/test-repo",
+        mode: "worktree",
+        teamId,
+        createdAt: new Date().toISOString(),
+      });
+
+      const project = await repos.projects.findById(testProjectId);
+      expect(project).toBeDefined();
+      expect(project!.teamId).toBe(teamId);
+    });
+
+    it("create without teamId defaults to null", async () => {
+      await repos.projects.create({
+        id: testProjectId,
+        name: "No Team Project",
+        repoPath: "/tmp/test-repo",
+        mode: "worktree",
+        createdAt: new Date().toISOString(),
+      });
+
+      const project = await repos.projects.findById(testProjectId);
+      expect(project).toBeDefined();
+      expect(project!.teamId).toBeNull();
+    });
+
+    it("findByTeamId returns team projects", async () => {
+      const teamId = `team-find-${Date.now()}`;
+      await repos.projects.create({
+        id: testProjectId,
+        name: "Team Project",
+        repoPath: "/tmp/test-repo",
+        mode: "worktree",
+        teamId,
+        createdAt: new Date().toISOString(),
+      });
+
+      const teamProjects = await repos.projects.findByTeamId!(teamId);
+      expect(teamProjects.some((p) => p.id === testProjectId)).toBe(true);
+    });
+
+    it("update changes teamId", async () => {
+      await repos.projects.create({
+        id: testProjectId,
+        name: "Test",
+        repoPath: "/tmp/test-repo",
+        mode: "worktree",
+        createdAt: new Date().toISOString(),
+      });
+
+      const newTeamId = "updated-team-456";
+      await repos.projects.update(testProjectId, { teamId: newTeamId });
+      const project = await repos.projects.findById(testProjectId);
+      expect(project!.teamId).toBe(newTeamId);
     });
 
     it("findAll includes the created project", async () => {

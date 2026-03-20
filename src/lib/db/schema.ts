@@ -8,6 +8,7 @@ export const projects = sqliteTable("projects", {
   mode: text("mode").notNull().default("worktree"),
   storageMode: text("storage_mode").notNull().default("local"),
   userId: text("user_id"),
+  teamId: text("team_id"),
   createdAt: text("created_at").notNull(),
 });
 

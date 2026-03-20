@@ -100,6 +100,7 @@ describe("Multi-tenancy", () => {
       mode: "worktree",
       storageMode: "local",
       userId: "user-1",
+      teamId: null,
       createdAt: new Date().toISOString(),
     };
     expect(row.userId).toBe("user-1");
@@ -114,8 +115,102 @@ describe("Multi-tenancy", () => {
       mode: "worktree",
       storageMode: "local",
       userId: null,
+      teamId: null,
       createdAt: new Date().toISOString(),
     };
     expect(row.userId).toBeNull();
+  });
+
+  it("should include teamId in ProjectRow type", () => {
+    const row = {
+      id: "p1",
+      name: "Test",
+      repoPath: "/tmp",
+      chatSessionId: null,
+      mode: "worktree",
+      storageMode: "local",
+      userId: "user-1",
+      teamId: "team-1",
+      createdAt: new Date().toISOString(),
+    };
+    expect(row.teamId).toBe("team-1");
+  });
+
+  it("should allow null teamId for backward compatibility", () => {
+    const row = {
+      id: "p1",
+      name: "Test",
+      repoPath: "/tmp",
+      chatSessionId: null,
+      mode: "worktree",
+      storageMode: "local",
+      userId: null,
+      teamId: null,
+      createdAt: new Date().toISOString(),
+    };
+    expect(row.teamId).toBeNull();
+  });
+});
+
+describe("Team types", () => {
+  it("should have valid TeamRow shape", () => {
+    const team = {
+      id: "team-1",
+      name: "My Team",
+      isPersonal: false,
+      createdAt: new Date().toISOString(),
+    };
+    expect(team.id).toBe("team-1");
+    expect(team.isPersonal).toBe(false);
+  });
+
+  it("should have valid TeamMemberRow shape", () => {
+    const member = {
+      id: "tm-1",
+      teamId: "team-1",
+      userId: "user-1",
+      role: "owner" as const,
+      createdAt: new Date().toISOString(),
+    };
+    expect(member.role).toBe("owner");
+    expect(["owner", "admin", "member"]).toContain(member.role);
+  });
+
+  it("should have valid InviteRow shape", () => {
+    const invite = {
+      id: "inv-1",
+      teamId: "team-1",
+      email: "user@example.com",
+      role: "member" as const,
+      status: "pending" as const,
+      invitedBy: "user-1",
+      createdAt: new Date().toISOString(),
+    };
+    expect(invite.status).toBe("pending");
+    expect(["pending", "accepted", "declined", "expired"]).toContain(invite.status);
+  });
+
+  it("should have valid UserRow shape", () => {
+    const user = {
+      id: "user-1",
+      email: "test@example.com",
+      name: "Test User",
+      avatarUrl: "https://example.com/avatar.jpg",
+      createdAt: new Date().toISOString(),
+    };
+    expect(user.email).toBe("test@example.com");
+    expect(user.name).toBe("Test User");
+  });
+
+  it("should allow nullable name and avatarUrl in UserRow", () => {
+    const user = {
+      id: "user-1",
+      email: "test@example.com",
+      name: null,
+      avatarUrl: null,
+      createdAt: new Date().toISOString(),
+    };
+    expect(user.name).toBeNull();
+    expect(user.avatarUrl).toBeNull();
   });
 });

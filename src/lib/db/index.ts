@@ -164,3 +164,38 @@ try {
 } catch {
   // Column already exists
 }
+
+// Migrate: add team_id column to projects (team ownership)
+try {
+  sqlite.exec(`ALTER TABLE projects ADD COLUMN team_id TEXT`);
+} catch {
+  // Column already exists
+}
+
+// Migrate: remove stale FK constraints on user_id/team_id in projects
+// These may reference Supabase-only tables (users, teams) that don't exist in SQLite.
+try {
+  const tableInfo = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'").get() as { sql: string } | undefined;
+  if (tableInfo?.sql && (tableInfo.sql.includes("REFERENCES users") || tableInfo.sql.includes("REFERENCES teams"))) {
+    sqlite.pragma("foreign_keys = OFF");
+    sqlite.exec(`
+      CREATE TABLE projects_new (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        repo_path TEXT NOT NULL,
+        chat_session_id TEXT,
+        mode TEXT NOT NULL DEFAULT 'worktree',
+        storage_mode TEXT NOT NULL DEFAULT 'local',
+        user_id TEXT,
+        team_id TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO projects_new SELECT id, name, repo_path, chat_session_id, mode, storage_mode, user_id, team_id, created_at FROM projects;
+      DROP TABLE projects;
+      ALTER TABLE projects_new RENAME TO projects;
+    `);
+    sqlite.pragma("foreign_keys = ON");
+  }
+} catch (e) {
+  console.error("[db] projects FK cleanup error:", e);
+}

@@ -29,6 +29,43 @@ export interface Project {
   chatSessionId: string | null;
   mode: "worktree" | "queue";
   storageMode: StorageMode;
+  teamId: string | null;
+  createdAt: string;
+}
+
+export type TeamMemberRole = "owner" | "admin" | "member";
+export type InviteStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface Team {
+  id: string;
+  name: string;
+  isPersonal: boolean;
+  createdAt: string;
+}
+
+export interface TeamMember {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: TeamMemberRole;
+  createdAt: string;
+}
+
+export interface Invite {
+  id: string;
+  teamId: string;
+  email: string;
+  role: TeamMemberRole;
+  status: InviteStatus;
+  invitedBy: string;
+  createdAt: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
   createdAt: string;
 }
 

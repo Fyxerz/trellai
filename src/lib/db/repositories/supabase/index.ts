@@ -3,3 +3,7 @@ export { SupabaseCardRepository } from "./cards";
 export { SupabaseChecklistItemRepository } from "./checklist-items";
 export { SupabaseChatMessageRepository } from "./chat-messages";
 export { SupabaseFileRepository } from "./files";
+export { SupabaseUserRepository } from "./users";
+export { SupabaseTeamRepository } from "./teams";
+export { SupabaseTeamMemberRepository } from "./team-members";
+export { SupabaseInviteRepository } from "./invites";

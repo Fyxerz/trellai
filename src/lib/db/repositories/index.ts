@@ -17,6 +17,10 @@ import {
   SupabaseChecklistItemRepository,
   SupabaseChatMessageRepository,
   SupabaseFileRepository,
+  SupabaseUserRepository,
+  SupabaseTeamRepository,
+  SupabaseTeamMemberRepository,
+  SupabaseInviteRepository,
 } from "./supabase";
 
 // ── Singleton repositories ──────────────────────────────────────────────────
@@ -32,6 +36,7 @@ function getSqliteRepositories(): RepositoryContext {
       checklistItems: new SqliteChecklistItemRepository(),
       chatMessages: new SqliteChatMessageRepository(),
       files: new SqliteFileRepository(),
+      // users, teams, teamMembers, invites are Supabase-only
     };
   }
   return _sqliteRepos;
@@ -45,6 +50,10 @@ function getSupabaseRepositories(): RepositoryContext {
       checklistItems: new SupabaseChecklistItemRepository(),
       chatMessages: new SupabaseChatMessageRepository(),
       files: new SupabaseFileRepository(),
+      users: new SupabaseUserRepository(),
+      teams: new SupabaseTeamRepository(),
+      teamMembers: new SupabaseTeamMemberRepository(),
+      invites: new SupabaseInviteRepository(),
     };
   }
   return _supabaseRepos;
@@ -85,9 +94,17 @@ export type {
   IChecklistItemRepository,
   IChatMessageRepository,
   IFileRepository,
+  IUserRepository,
+  ITeamRepository,
+  ITeamMemberRepository,
+  IInviteRepository,
   ProjectRow,
   CardRow,
   ChecklistItemRow,
   ChatMessageRow,
   FileRow,
+  UserRow,
+  TeamRow,
+  TeamMemberRow,
+  InviteRow,
 } from "./types";

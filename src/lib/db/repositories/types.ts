@@ -18,6 +18,44 @@ export interface ProjectRow {
   mode: string;
   storageMode: string;
   userId: string | null;
+  teamId: string | null;
+  createdAt: string;
+}
+
+export interface UserRow {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export interface TeamRow {
+  id: string;
+  name: string;
+  isPersonal: boolean;
+  createdAt: string;
+}
+
+export type TeamMemberRole = "owner" | "admin" | "member";
+
+export interface TeamMemberRow {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: TeamMemberRole;
+  createdAt: string;
+}
+
+export type InviteStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface InviteRow {
+  id: string;
+  teamId: string;
+  email: string;
+  role: TeamMemberRole;
+  status: InviteStatus;
+  invitedBy: string;
   createdAt: string;
 }
 
@@ -76,8 +114,9 @@ export interface FileRow {
 export interface IProjectRepository {
   findAll(): Promise<ProjectRow[]>;
   findById(id: string): Promise<ProjectRow | undefined>;
-  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId"> & { storageMode?: string; userId?: string | null }): Promise<void>;
-  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): Promise<void>;
+  findByTeamId?(teamId: string): Promise<ProjectRow[]>;
+  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId" | "teamId"> & { storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void>;
+  update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void>;
   delete(id: string): Promise<void>;
 }
 
@@ -132,6 +171,42 @@ export interface IFileRepository {
   deleteByCardId(cardId: string): Promise<void>;
 }
 
+export interface IUserRepository {
+  findById(id: string): Promise<UserRow | undefined>;
+  findByEmail(email: string): Promise<UserRow | undefined>;
+  upsert(data: UserRow): Promise<void>;
+  update(id: string, data: Partial<Pick<UserRow, "name" | "avatarUrl">>): Promise<void>;
+}
+
+export interface ITeamRepository {
+  findById(id: string): Promise<TeamRow | undefined>;
+  findByUserId(userId: string): Promise<TeamRow[]>;
+  findPersonalTeam(userId: string): Promise<TeamRow | undefined>;
+  create(data: Omit<TeamRow, "id" | "createdAt"> & { id?: string }): Promise<TeamRow>;
+  update(id: string, data: Partial<Pick<TeamRow, "name">>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+export interface ITeamMemberRepository {
+  findByTeamId(teamId: string): Promise<TeamMemberRow[]>;
+  findByUserId(userId: string): Promise<TeamMemberRow[]>;
+  findByTeamAndUser(teamId: string, userId: string): Promise<TeamMemberRow | undefined>;
+  create(data: Omit<TeamMemberRow, "id" | "createdAt"> & { id?: string }): Promise<void>;
+  update(id: string, data: Partial<Pick<TeamMemberRow, "role">>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByTeamAndUser(teamId: string, userId: string): Promise<void>;
+}
+
+export interface IInviteRepository {
+  findById(id: string): Promise<InviteRow | undefined>;
+  findByTeamId(teamId: string): Promise<InviteRow[]>;
+  findByEmail(email: string): Promise<InviteRow[]>;
+  findPendingByEmail(email: string): Promise<InviteRow[]>;
+  create(data: Omit<InviteRow, "id" | "status" | "createdAt"> & { id?: string }): Promise<InviteRow>;
+  update(id: string, data: Partial<Pick<InviteRow, "status" | "role">>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
 // ── Combined repository context ─────────────────────────────────────────────
 
 export interface RepositoryContext {
@@ -140,4 +215,8 @@ export interface RepositoryContext {
   checklistItems: IChecklistItemRepository;
   chatMessages: IChatMessageRepository;
   files: IFileRepository;
+  users?: IUserRepository;
+  teams?: ITeamRepository;
+  teamMembers?: ITeamMemberRepository;
+  invites?: IInviteRepository;
 }

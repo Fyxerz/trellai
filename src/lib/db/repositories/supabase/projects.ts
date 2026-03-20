@@ -11,6 +11,7 @@ function toProjectRow(row: Record<string, unknown>): ProjectRow {
     mode: row.mode as string,
     storageMode: row.storage_mode as string,
     userId: (row.user_id as string) ?? null,
+    teamId: (row.team_id as string) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -38,7 +39,16 @@ export class SupabaseProjectRepository implements IProjectRepository {
     return data ? toProjectRow(data) : undefined;
   }
 
-  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId"> & { storageMode?: string; userId?: string | null }): Promise<void> {
+  async findByTeamId(teamId: string): Promise<ProjectRow[]> {
+    const { data, error } = await this.client
+      .from("projects")
+      .select("*")
+      .eq("team_id", teamId);
+    if (error) throw error;
+    return (data ?? []).map(toProjectRow);
+  }
+
+  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId" | "teamId"> & { storageMode?: string; userId?: string | null; teamId?: string | null }): Promise<void> {
     const { error } = await this.client.from("projects").insert({
       id: data.id,
       name: data.name,
@@ -46,17 +56,19 @@ export class SupabaseProjectRepository implements IProjectRepository {
       mode: data.mode,
       storage_mode: data.storageMode || "supabase",
       user_id: data.userId ?? null,
+      team_id: data.teamId ?? null,
       created_at: data.createdAt,
     });
     if (error) throw error;
   }
 
-  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): Promise<void> {
+  async update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode" | "teamId">>): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.mode !== undefined) updateData.mode = data.mode;
     if (data.chatSessionId !== undefined) updateData.chat_session_id = data.chatSessionId;
     if (data.storageMode !== undefined) updateData.storage_mode = data.storageMode;
+    if (data.teamId !== undefined) updateData.team_id = data.teamId;
     if (Object.keys(updateData).length > 0) {
       const { error } = await this.client.from("projects").update(updateData).eq("id", id);
       if (error) throw error;
