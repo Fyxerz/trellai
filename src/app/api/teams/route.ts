@@ -83,8 +83,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(team, { status: 201 });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
     console.error("[teams] POST error:", error);
+    // Supabase errors have .message and .code; plain Error has .message
+    const msg =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as Record<string, unknown>).message)
+          : JSON.stringify(error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
