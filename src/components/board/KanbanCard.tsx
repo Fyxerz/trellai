@@ -172,12 +172,10 @@ export function KanbanCard({ card, index, onClick }: KanbanCardProps) {
             <TestBadge status={card.testStatus} results={card.testResults} />
           )}
 
-          {/* Progress bar for running agents */}
+          {/* Spinning loader for running agents */}
           {isRunning && (
             <div className="mt-3 flex items-center gap-2">
-              <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full w-2/3 rounded-full progress-shimmer" />
-              </div>
+              <div className="agent-spinner h-4 w-4 shrink-0" />
               <span className="text-[11px] text-white/40">active</span>
             </div>
           )}
