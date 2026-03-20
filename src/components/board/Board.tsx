@@ -19,6 +19,7 @@ import { useBoard } from "@/hooks/useBoard";
 import { usePresence } from "@/hooks/usePresence";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
+import { GitPushButton } from "./GitPushButton";
 import { Loader2, ArrowLeft, FileEdit } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "planning", "production", "review", "complete"];
@@ -223,6 +224,7 @@ function BoardInner({ projectId }: BoardProps) {
               <FileEdit className="h-3.5 w-3.5" />
               Editor
             </button>
+            <GitPushButton projectId={projectId} />
             <ProjectFilesPopover
               files={projectFiles}
               onUpload={handleProjectFileUpload}
