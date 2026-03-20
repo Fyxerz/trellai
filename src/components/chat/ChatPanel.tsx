@@ -118,13 +118,13 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
                 <MessageSquare className="h-5 w-5 text-white/20" />
               </div>
               <p className="text-sm text-white/30 max-w-[240px]">
-                {column === "features"
+                {column === "features" || column === "planning"
                   ? "Chat with Claude to plan this feature, then move it to development when ready."
                   : column === "production"
                     ? "Agent output will stream here when running."
                     : "No messages yet."}
               </p>
-              {column === "features" && (
+              {(column === "features" || column === "planning") && (
                 <button
                   onClick={handlePlan}
                   className="mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -160,7 +160,7 @@ export function ChatPanel({ cardId, column, cardTitle, cardDescription, onAutoMo
       </div>
 
       {/* Move to Development button for features column */}
-      {column === "features" && messages.length > 0 && !agentRunning && (
+      {(column === "features" || column === "planning") && messages.length > 0 && !agentRunning && (
         <div className="shrink-0 border-t border-white/8 px-4 py-2">
           <button
             onClick={async () => {

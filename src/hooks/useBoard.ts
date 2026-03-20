@@ -118,7 +118,7 @@ export function useBoard(projectId: string) {
     return updated;
   };
 
-  const createCard = async (title: string, description = "", type: CardType = "feature") => {
+  const createCard = async (title: string, description = "", type: CardType = "feature", column?: Column) => {
     if (!project) return;
     const res = await fetch("/api/cards", {
       method: "POST",
@@ -128,6 +128,7 @@ export function useBoard(projectId: string) {
         title,
         description,
         type,
+        ...(column ? { column } : {}),
       }),
     });
     const card = await res.json();

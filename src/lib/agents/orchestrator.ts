@@ -177,7 +177,7 @@ class Orchestrator {
         this.spawnAgent(cardId, project.repoPath, message, {
           sessionId,
           systemPrompt: PLANNING_SYSTEM_PROMPT + cardContext + filesContext,
-          column: "features",
+          column: card.column,
           tools: PLANNING_TOOLS,
           disallowedTools: PLANNING_DISALLOWED_TOOLS,
           mcpServers: { "trellai-questions": questionMcp },
@@ -189,7 +189,7 @@ class Orchestrator {
         const questionMcpResume = createQuestionMcpServer(cardId);
         this.spawnAgent(cardId, project.repoPath, message, {
           resumeSessionId: card.claudeSessionId!,
-          column: "features",
+          column: card.column,
           tools: PLANNING_TOOLS,
           disallowedTools: PLANNING_DISALLOWED_TOOLS,
           mcpServers: { "trellai-questions": questionMcpResume },
@@ -272,8 +272,8 @@ class Orchestrator {
       const content = data.content;
       console.log(`[orchestrator] output(${cardId}): type=${data.type} len=${content?.length}`);
 
-      // Check for ready-for-development marker in features column
-      if (options.column === "features" && data.type === "result" && content.includes("[READY_FOR_DEVELOPMENT]")) {
+      // Check for ready-for-development marker in features/planning column
+      if ((options.column === "features" || options.column === "planning") && data.type === "result" && content.includes("[READY_FOR_DEVELOPMENT]")) {
         const cleaned = content.replace(/\[READY_FOR_DEVELOPMENT\]/g, "").trim();
 
         // Persist the cleaned message
@@ -464,7 +464,7 @@ class Orchestrator {
       let newStatus: string;
       if (code !== 0) {
         newStatus = "error";
-      } else if (options.column === "features") {
+      } else if (options.column === "features" || options.column === "planning") {
         // Don't overwrite ready_for_dev — it was set intentionally by agent
         newStatus = exitCard?.agentStatus === "ready_for_dev" ? "ready_for_dev" : "awaiting_feedback";
       } else if (options.column === "production") {
@@ -550,8 +550,8 @@ class Orchestrator {
   async confirmMoveToDev(cardId: string) {
     const card = await repos.cards.findById(cardId);
     if (!card) throw new Error("Card not found");
-    if (card.column !== "features") {
-      throw new Error("Card is not in the features column");
+    if (card.column !== "features" && card.column !== "planning") {
+      throw new Error("Card is not in the backlog or planning column");
     }
 
     // Show ready_for_dev status while worktree is being created
@@ -632,7 +632,10 @@ class Orchestrator {
         updatedAt: new Date().toISOString(),
       });
 
-    const planningMessages = await repos.chatMessages.findByCardIdAndColumn(cardId, "features");
+    const planningMessages = [
+      ...await repos.chatMessages.findByCardIdAndColumn(cardId, "features"),
+      ...await repos.chatMessages.findByCardIdAndColumn(cardId, "planning"),
+    ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
     let planningContext = "";
     if (planningMessages.length > 0) {
@@ -779,7 +782,10 @@ IMPORTANT: After implementing the feature, run the project's tests. Then use the
           updatedAt: new Date().toISOString(),
         });
 
-      const planningMessages = await repos.chatMessages.findByCardIdAndColumn(cardId, "features");
+      const planningMessages = [
+      ...await repos.chatMessages.findByCardIdAndColumn(cardId, "features"),
+      ...await repos.chatMessages.findByCardIdAndColumn(cardId, "planning"),
+    ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
       let planningContext = "";
       if (planningMessages.length > 0) {
