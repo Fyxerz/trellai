@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IInviteRepository, InviteRow } from "../types";
 
@@ -14,8 +15,14 @@ function toInviteRow(row: Record<string, unknown>): InviteRow {
 }
 
 export class SupabaseInviteRepository implements IInviteRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findById(id: string): Promise<InviteRow | undefined> {

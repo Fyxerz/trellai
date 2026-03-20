@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IChecklistItemRepository, ChecklistItemRow } from "../types";
 
@@ -13,8 +14,14 @@ function toChecklistItemRow(row: Record<string, unknown>): ChecklistItemRow {
 }
 
 export class SupabaseChecklistItemRepository implements IChecklistItemRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findByCardId(cardId: string): Promise<ChecklistItemRow[]> {

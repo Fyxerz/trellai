@@ -26,7 +26,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Action must be 'accept' or 'decline'" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.invites || !repos.teamMembers) {
     return NextResponse.json({ error: "Invites not available" }, { status: 501 });
   }

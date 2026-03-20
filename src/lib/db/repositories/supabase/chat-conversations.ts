@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IChatConversationRepository, ChatConversationRow } from "../types";
 
@@ -13,8 +14,14 @@ function toChatConversationRow(row: Record<string, unknown>): ChatConversationRo
 }
 
 export class SupabaseChatConversationRepository implements IChatConversationRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findByProjectId(projectId: string): Promise<ChatConversationRow[]> {

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ITeamMemberRepository, TeamMemberRow } from "../types";
 
@@ -12,8 +13,14 @@ function toTeamMemberRow(row: Record<string, unknown>): TeamMemberRow {
 }
 
 export class SupabaseTeamMemberRepository implements ITeamMemberRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findByTeamId(teamId: string): Promise<TeamMemberRow[]> {

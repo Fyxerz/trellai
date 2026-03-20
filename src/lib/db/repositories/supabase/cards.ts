@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ICardRepository, CardRow } from "../types";
 
@@ -49,8 +50,14 @@ function toSnakeCase(data: Record<string, unknown>): Record<string, unknown> {
 }
 
 export class SupabaseCardRepository implements ICardRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findAll(): Promise<CardRow[]> {

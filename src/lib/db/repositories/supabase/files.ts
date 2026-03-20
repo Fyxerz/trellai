@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IFileRepository, FileRow } from "../types";
 
@@ -15,8 +16,14 @@ function toFileRow(row: Record<string, unknown>): FileRow {
 }
 
 export class SupabaseFileRepository implements IFileRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findById(id: string): Promise<FileRow | undefined> {

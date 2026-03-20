@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.invites) {
     return NextResponse.json({ error: "Invites not available" }, { status: 501 });
   }

@@ -17,7 +17,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.teamMembers) {
     return NextResponse.json({ error: "Team members not available" }, { status: 501 });
   }
@@ -57,7 +57,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.teamMembers) {
     return NextResponse.json({ error: "Team members not available" }, { status: 501 });
   }

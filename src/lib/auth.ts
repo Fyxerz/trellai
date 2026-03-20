@@ -102,7 +102,8 @@ export async function assertProjectAccess(
   // Team-based access
   if (project.teamId) {
     try {
-      const supaRepos = getRepositories("supabase");
+      const supabase = await createServerSupabaseClient();
+      const supaRepos = getRepositories("supabase", supabase);
       if (supaRepos.teamMembers) {
         const membership = await supaRepos.teamMembers.findByTeamAndUser(
           project.teamId,

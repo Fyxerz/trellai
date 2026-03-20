@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IProjectRepository, ProjectRow } from "../types";
 
@@ -18,8 +19,14 @@ function toProjectRow(row: Record<string, unknown>): ProjectRow {
 }
 
 export class SupabaseProjectRepository implements IProjectRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findAll(): Promise<ProjectRow[]> {

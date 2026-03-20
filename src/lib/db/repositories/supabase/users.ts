@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { IUserRepository, UserRow } from "../types";
 
@@ -12,8 +13,14 @@ function toUserRow(row: Record<string, unknown>): UserRow {
 }
 
 export class SupabaseUserRepository implements IUserRepository {
+  private _client: SupabaseClient | null;
+
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client() {
-    return getSupabaseClient();
+    return this._client ?? getSupabaseClient();
   }
 
   async findById(id: string): Promise<UserRow | undefined> {

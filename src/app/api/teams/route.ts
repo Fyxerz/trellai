@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.teams) {
     return NextResponse.json({ error: "Teams not available in this storage mode" }, { status: 501 });
   }
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase");
+  const repos = getRepositories("supabase", supabase);
   if (!repos.teams || !repos.teamMembers) {
     return NextResponse.json({ error: "Teams not available in this storage mode" }, { status: 501 });
   }
