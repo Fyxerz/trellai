@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocalRepositories } from "@/lib/db/repositories";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { v4 as uuid } from "uuid";
 import { existsSync, statSync } from "fs";
 import { execSync } from "child_process";
@@ -8,8 +9,24 @@ import { generateProjectDocs } from "@/lib/agents/project-docs-generator";
 const repos = getLocalRepositories();
 
 export async function GET() {
+  // Extract the authenticated user (middleware already enforces auth)
+  let userId: string | null = null;
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    userId = user?.id ?? null;
+  } catch {
+    // If Supabase auth fails, return all projects (backward compat for local dev)
+  }
+
   const allProjects = await repos.projects.findAll();
-  return NextResponse.json(allProjects);
+
+  // Filter by userId if available (multi-tenancy)
+  const filtered = userId
+    ? allProjects.filter((p) => p.userId === userId || p.userId === null)
+    : allProjects;
+
+  return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest) {
@@ -29,6 +46,16 @@ export async function POST(req: NextRequest) {
     execSync("git init", { cwd: body.repoPath, stdio: "pipe" });
   }
 
+  // Extract the authenticated user
+  let userId: string | null = null;
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    userId = user?.id ?? null;
+  } catch {
+    // Fallback: no user association
+  }
+
   const id = uuid();
   const now = new Date().toISOString();
 
@@ -37,6 +64,7 @@ export async function POST(req: NextRequest) {
     name: body.name,
     repoPath: body.repoPath,
     mode: "worktree",
+    userId,
     createdAt: now,
   });
 

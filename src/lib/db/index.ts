@@ -157,3 +157,10 @@ sqlite.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// Migrate: add user_id column to projects (multi-tenancy)
+try {
+  sqlite.exec(`ALTER TABLE projects ADD COLUMN user_id TEXT`);
+} catch {
+  // Column already exists
+}

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Plus, LayoutDashboard, Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { ProjectCard } from "./ProjectCard";
 import { AttentionFeed } from "./AttentionFeed";
 import { CreateProjectDialog } from "./CreateProjectDialog";
@@ -69,7 +70,7 @@ export function Dashboard() {
               <Plus className="h-4 w-4" />
               New Board
             </button>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20" />
+            <UserMenu />
           </div>
         }
       />

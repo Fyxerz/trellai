@@ -12,7 +12,7 @@ export class SqliteProjectRepository implements IProjectRepository {
     return db.select().from(projects).where(eq(projects.id, id)).get() as ProjectRow | undefined;
   }
 
-  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): Promise<void> {
+  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId"> & { storageMode?: string; userId?: string | null }): Promise<void> {
     db.insert(projects)
       .values({
         id: data.id,
@@ -20,6 +20,7 @@ export class SqliteProjectRepository implements IProjectRepository {
         repoPath: data.repoPath,
         mode: data.mode,
         storageMode: data.storageMode || "local",
+        userId: data.userId ?? null,
         createdAt: data.createdAt,
       })
       .run();

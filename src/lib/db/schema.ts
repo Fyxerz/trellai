@@ -7,6 +7,7 @@ export const projects = sqliteTable("projects", {
   chatSessionId: text("chat_session_id"),
   mode: text("mode").notNull().default("worktree"),
   storageMode: text("storage_mode").notNull().default("local"),
+  userId: text("user_id"),
   createdAt: text("created_at").notNull(),
 });
 

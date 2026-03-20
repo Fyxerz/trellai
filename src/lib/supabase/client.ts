@@ -1,10 +1,13 @@
 /**
- * Supabase client singleton for server-side usage.
+ * Supabase client utilities.
  *
- * Requires env vars:
- *   NEXT_PUBLIC_SUPABASE_URL
- *   NEXT_PUBLIC_SUPABASE_ANON_KEY
- *   SUPABASE_SERVICE_ROLE_KEY (optional, for admin operations)
+ * - Browser client: use `createBrowserSupabaseClient` from `./browser`
+ * - Server client:  use `createServerSupabaseClient` from `./server`
+ * - Admin client:   use `getSupabaseAdminClient` below (service role, bypasses RLS)
+ *
+ * The anon-key singleton (`getSupabaseClient`) is kept for backward compatibility
+ * with Supabase repository classes that run server-side outside a request context
+ * (e.g., orchestrator, socket server). Prefer the SSR-aware clients in Next.js routes.
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -15,6 +18,10 @@ let _adminClient: SupabaseClient | null = null;
 /**
  * Get the Supabase client using the anon key.
  * This respects RLS policies based on the authenticated user.
+ *
+ * NOTE: This is a plain client without cookie-based auth.
+ * For Next.js Server Components / Route Handlers, prefer `createServerSupabaseClient`.
+ * For Client Components, prefer `createBrowserSupabaseClient`.
  */
 export function getSupabaseClient(): SupabaseClient {
   if (!_client) {

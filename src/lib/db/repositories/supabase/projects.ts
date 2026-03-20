@@ -10,6 +10,7 @@ function toProjectRow(row: Record<string, unknown>): ProjectRow {
     chatSessionId: (row.chat_session_id as string) ?? null,
     mode: row.mode as string,
     storageMode: row.storage_mode as string,
+    userId: (row.user_id as string) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -37,13 +38,14 @@ export class SupabaseProjectRepository implements IProjectRepository {
     return data ? toProjectRow(data) : undefined;
   }
 
-  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): Promise<void> {
+  async create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId"> & { storageMode?: string; userId?: string | null }): Promise<void> {
     const { error } = await this.client.from("projects").insert({
       id: data.id,
       name: data.name,
       repo_path: data.repoPath,
       mode: data.mode,
       storage_mode: data.storageMode || "supabase",
+      user_id: data.userId ?? null,
       created_at: data.createdAt,
     });
     if (error) throw error;

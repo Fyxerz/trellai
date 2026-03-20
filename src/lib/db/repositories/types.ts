@@ -17,6 +17,7 @@ export interface ProjectRow {
   chatSessionId: string | null;
   mode: string;
   storageMode: string;
+  userId: string | null;
   createdAt: string;
 }
 
@@ -75,7 +76,7 @@ export interface FileRow {
 export interface IProjectRepository {
   findAll(): Promise<ProjectRow[]>;
   findById(id: string): Promise<ProjectRow | undefined>;
-  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode"> & { storageMode?: string }): Promise<void>;
+  create(data: Omit<ProjectRow, "chatSessionId" | "storageMode" | "userId"> & { storageMode?: string; userId?: string | null }): Promise<void>;
   update(id: string, data: Partial<Pick<ProjectRow, "name" | "mode" | "chatSessionId" | "storageMode">>): Promise<void>;
   delete(id: string): Promise<void>;
 }
