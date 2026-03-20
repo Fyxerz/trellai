@@ -1,8 +1,10 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Droppable } from "@hello-pangea/dnd";
 import { KanbanCard } from "./KanbanCard";
+import { CardGroup } from "./CardGroup";
 import { Plus, MoreHorizontal } from "lucide-react";
+import { groupCardsByDate } from "@/lib/group-cards";
 import type { Card, CardType, Column as ColumnType, PresenceUser, CardLock } from "@/types";
 
 const columnConfig: Record<
@@ -37,6 +39,17 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
         return a.position - b.position;
       })
     : cards;
+
+  // For the complete column, separate attention-needing cards and group the rest by date
+  const { attentionCards, groupedCards } = useMemo(() => {
+    const needsAttentionStatuses = new Set(["awaiting_feedback", "error", "running"]);
+    if (column !== "complete") return { attentionCards: [] as Card[], groupedCards: [] };
+    const attention = sortedCards.filter((c) => needsAttentionStatuses.has(c.agentStatus));
+    const rest = sortedCards.filter((c) => !needsAttentionStatuses.has(c.agentStatus));
+    return { attentionCards: attention, groupedCards: groupCardsByDate(rest) };
+  }, [column, sortedCards]);
+
+  const isGrouped = column === "complete" && sortedCards.length > 0;
 
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -89,73 +102,134 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
       </div>
 
       {/* Drop zone */}
-      <Droppable droppableId={column}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`space-y-3 px-3 py-2 min-h-[60px] overflow-y-auto transition-all duration-200 ${
-              snapshot.isDraggingOver
-                ? "bg-white/5 rounded-xl mx-1"
-                : ""
-            }`}
-          >
-            {sortedCards.map((card, index) => (
-              <KanbanCard
-                key={card.id}
-                card={card}
-                index={index}
-                onClick={() => onCardClick(card)}
-                viewers={cardViewers?.[card.id]}
-                lock={cardLocks?.[card.id]}
-              />
-            ))}
-            {provided.placeholder}
-
-            {/* Inline new card input */}
-            {isAdding && (
-              <div className="glass-card rounded-xl p-3 space-y-2">
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setNewType("feature")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
-                      newType === "feature"
-                        ? "bg-amber-500/25 text-amber-300"
-                        : "bg-white/5 text-white/30 hover:text-white/50"
-                    }`}
-                  >
-                    Feature
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setNewType("fix")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
-                      newType === "fix"
-                        ? "bg-rose-500/25 text-rose-300"
-                        : "bg-white/5 text-white/30 hover:text-white/50"
-                    }`}
-                  >
-                    Fix
-                  </button>
+      {isGrouped ? (
+        <div className="space-y-2 px-3 py-2 min-h-[60px] overflow-y-auto">
+          {/* Attention-needing cards shown ungrouped at top */}
+          {attentionCards.length > 0 && (
+            <Droppable droppableId={column}>
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={`space-y-3 transition-all duration-200 ${
+                    snapshot.isDraggingOver ? "bg-white/5 rounded-xl" : ""
+                  }`}
+                >
+                  {attentionCards.map((card, index) => (
+                    <KanbanCard
+                      key={card.id}
+                      card={card}
+                      index={index}
+                      onClick={() => onCardClick(card)}
+                      viewers={cardViewers?.[card.id]}
+                      lock={cardLocks?.[card.id]}
+                    />
+                  ))}
+                  {provided.placeholder}
                 </div>
-                <textarea
-                  ref={inputRef}
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onBlur={handleAdd}
-                  placeholder="Card title..."
-                  rows={2}
-                  className="w-full bg-transparent text-sm font-semibold text-white/90 placeholder:text-white/25 resize-none focus:outline-none"
+              )}
+            </Droppable>
+          )}
+
+          {/* Grouped cards by date */}
+          {groupedCards.map((group) => (
+            <CardGroup
+              key={group.key}
+              label={group.label}
+              cards={group.cards}
+              defaultExpanded={group.defaultExpanded}
+              droppableId={`${column}:${group.key}`}
+              indexOffset={attentionCards.length}
+              onCardClick={onCardClick}
+              cardViewers={cardViewers}
+              cardLocks={cardLocks}
+            />
+          ))}
+
+          {/* Fallback droppable when no attention cards */}
+          {attentionCards.length === 0 && (
+            <Droppable droppableId={column}>
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="min-h-[1px]"
+                >
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          )}
+        </div>
+      ) : (
+        <Droppable droppableId={column}>
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`space-y-3 px-3 py-2 min-h-[60px] overflow-y-auto transition-all duration-200 ${
+                snapshot.isDraggingOver
+                  ? "bg-white/5 rounded-xl mx-1"
+                  : ""
+              }`}
+            >
+              {sortedCards.map((card, index) => (
+                <KanbanCard
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  onClick={() => onCardClick(card)}
+                  viewers={cardViewers?.[card.id]}
+                  lock={cardLocks?.[card.id]}
                 />
-              </div>
-            )}
-          </div>
-        )}
-      </Droppable>
+              ))}
+              {provided.placeholder}
+
+              {/* Inline new card input */}
+              {isAdding && (
+                <div className="glass-card rounded-xl p-3 space-y-2">
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setNewType("feature")}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                        newType === "feature"
+                          ? "bg-amber-500/25 text-amber-300"
+                          : "bg-white/5 text-white/30 hover:text-white/50"
+                      }`}
+                    >
+                      Feature
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setNewType("fix")}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                        newType === "fix"
+                          ? "bg-rose-500/25 text-rose-300"
+                          : "bg-white/5 text-white/30 hover:text-white/50"
+                      }`}
+                    >
+                      Fix
+                    </button>
+                  </div>
+                  <textarea
+                    ref={inputRef}
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleAdd}
+                    placeholder="Card title..."
+                    rows={2}
+                    className="w-full bg-transparent text-sm font-semibold text-white/90 placeholder:text-white/25 resize-none focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </Droppable>
+      )}
 
       {/* Add card footer */}
       {!isAdding && (
