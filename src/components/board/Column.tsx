@@ -21,13 +21,15 @@ const columnConfig: Record<
 interface ColumnProps {
   column: ColumnType;
   cards: Card[];
+  totalCards?: number;
+  isFiltered?: boolean;
   onCardClick: (card: Card) => void;
   onCreateCard: (title: string, description?: string, type?: CardType, column?: ColumnType) => Promise<Card | undefined>;
   cardViewers?: Record<string, PresenceUser[]>;
   cardLocks?: Record<string, CardLock>;
 }
 
-export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, cardLocks }: ColumnProps) {
+export function Column({ column, cards, totalCards, isFiltered, onCardClick, onCreateCard, cardViewers, cardLocks }: ColumnProps) {
   const config = columnConfig[column];
 
   // In the development column, show running cards above queued cards
@@ -94,7 +96,9 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
         <div className={`h-3 w-3 rounded-full ${config.dotColor}`} />
         <h2 className="text-base font-bold text-white">{config.label}</h2>
         <span className="ml-auto text-sm text-white/40">
-          {sortedCards.length} card{sortedCards.length !== 1 ? "s" : ""}
+          {isFiltered && totalCards !== undefined
+            ? `${sortedCards.length}/${totalCards}`
+            : `${sortedCards.length} card${sortedCards.length !== 1 ? "s" : ""}`}
         </span>
         <button className="ml-1 text-white/30 hover:text-white/60 transition-colors">
           <MoreHorizontal className="h-4 w-4" />
@@ -184,6 +188,13 @@ export function Column({ column, cards, onCardClick, onCreateCard, cardViewers, 
                 />
               ))}
               {provided.placeholder}
+
+              {/* No results message when filtering */}
+              {isFiltered && sortedCards.length === 0 && (
+                <p className="py-4 text-center text-xs text-white/25">
+                  No matching cards
+                </p>
+              )}
 
               {/* Inline new card input */}
               {isAdding && (

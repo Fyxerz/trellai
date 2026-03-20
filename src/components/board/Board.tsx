@@ -22,6 +22,7 @@ import { getAuthIdentity } from "@/lib/identity";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
 import { GitPushButton } from "./GitPushButton";
+import { SearchBar } from "./SearchBar";
 import { Loader2, ArrowLeft, FileEdit } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "planning", "production", "review", "complete"];
@@ -49,6 +50,24 @@ function BoardInner({ projectId }: BoardProps) {
   const [uploadingProjectFiles, setUploadingProjectFiles] = useState(false);
   const [boardDragOver, setBoardDragOver] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const cardMatchesSearch = useCallback(
+    (card: Card) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        card.title.toLowerCase().includes(q) ||
+        card.description.toLowerCase().includes(q)
+      );
+    },
+    [searchQuery],
+  );
+
+  const searchMatchCount = useMemo(() => {
+    if (!searchQuery) return board.cards.length;
+    return board.cards.filter(cardMatchesSearch).length;
+  }, [searchQuery, board.cards, cardMatchesSearch]);
 
   const fetchProjectFiles = useCallback(async () => {
     try {
@@ -255,34 +274,52 @@ function BoardInner({ projectId }: BoardProps) {
 
       {/* Board title area */}
       <div className="relative z-10 px-8 pb-4">
-        <EditableTitle
-          value={board.project.name}
-          onSave={(name) => board.renameProject(board.project!.id, name)}
-        />
-        <p className="mt-0.5 text-sm text-white/40">
-          {board.cards.length} card{board.cards.length !== 1 ? "s" : ""} across{" "}
-          {COLUMNS.length} columns
-        </p>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <EditableTitle
+              value={board.project.name}
+              onSave={(name) => board.renameProject(board.project!.id, name)}
+            />
+            <p className="mt-0.5 text-sm text-white/40">
+              {board.cards.length} card{board.cards.length !== 1 ? "s" : ""} across{" "}
+              {COLUMNS.length} columns
+            </p>
+          </div>
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            matchCount={searchMatchCount}
+            totalCards={board.cards.length}
+          />
+        </div>
       </div>
 
       {/* Columns */}
       <div className="relative z-10 flex-1 min-h-0 px-8 pb-8">
         <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="flex gap-5 h-full items-start">
-            {COLUMNS.map((col) => (
-              <Column
-                key={col}
-                column={col}
-                cards={board.getColumnCards(col)}
-                onCardClick={(card) => {
-                  presence.viewCard(card.id);
-                  setSelectedCard(card);
-                }}
-                onCreateCard={board.createCard}
-                cardViewers={presence.cardViewers}
-                cardLocks={presence.cardLocks}
-              />
-            ))}
+            {COLUMNS.map((col) => {
+              const columnCards = board.getColumnCards(col);
+              const filteredCards = searchQuery
+                ? columnCards.filter(cardMatchesSearch)
+                : columnCards;
+              return (
+                <Column
+                  key={col}
+                  column={col}
+                  cards={filteredCards}
+                  totalCards={columnCards.length}
+                  isFiltered={!!searchQuery}
+                  onCardClick={(card) => {
+                    presence.viewCard(card.id);
+                    setSelectedCard(card);
+                  }}
+                  onCreateCard={board.createCard}
+                  cardViewers={presence.cardViewers}
+                  cardLocks={presence.cardLocks}
+                />
+              );
+            })}
           </div>
         </DragDropContext>
       </div>
