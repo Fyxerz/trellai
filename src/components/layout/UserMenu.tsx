@@ -15,29 +15,43 @@ import { LogOut, User, LogIn } from "lucide-react";
 /**
  * Avatar with user initial or OAuth avatar image.
  */
-function UserAvatar({ user }: { user: { email?: string; user_metadata?: Record<string, string> } }) {
+function UserAvatar({
+  user,
+  showOnlineDot,
+}: {
+  user: { email?: string; user_metadata?: Record<string, string> };
+  showOnlineDot?: boolean;
+}) {
   const avatarUrl = user.user_metadata?.avatar_url;
   const initial = (user.email?.[0] ?? "U").toUpperCase();
 
-  if (avatarUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatarUrl}
-        alt="Avatar"
-        className="h-9 w-9 rounded-full ring-2 ring-white/20 object-cover"
-      />
-    );
-  }
-
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20 text-sm font-bold text-white">
-      {initial}
+    <div className="relative">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt="Avatar"
+          className="h-9 w-9 rounded-full ring-2 ring-white/20 object-cover"
+        />
+      ) : (
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 ring-2 ring-white/20 text-sm font-bold text-white">
+          {initial}
+        </div>
+      )}
+      {showOnlineDot && (
+        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0f0f14]" />
+      )}
     </div>
   );
 }
 
-export function UserMenu() {
+interface UserMenuProps {
+  /** Whether the user is online in the presence system */
+  isOnline?: boolean;
+}
+
+export function UserMenu({ isOnline }: UserMenuProps) {
   const { user, loading, isAnonymous, isAuthConfigured } = useAuth();
 
   // Loading state
@@ -47,7 +61,7 @@ export function UserMenu() {
     );
   }
 
-  // Anonymous user — show Sign In button (only if Supabase is configured)
+  // Anonymous user -- show Sign In button (only if Supabase is configured)
   if (isAnonymous) {
     if (!isAuthConfigured) return null;
     return (
@@ -61,11 +75,11 @@ export function UserMenu() {
     );
   }
 
-  // Authenticated user — show avatar dropdown
+  // Authenticated user -- show avatar dropdown with online dot
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-full">
-        <UserAvatar user={user!} />
+        <UserAvatar user={user!} showOnlineDot={isOnline} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-3 py-2">

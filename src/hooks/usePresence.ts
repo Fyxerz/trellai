@@ -3,22 +3,28 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "@/lib/socket-url";
-import { getUserIdentity, type UserIdentity } from "@/lib/identity";
+import type { UserIdentity } from "@/lib/identity";
 import type { PresenceUser, CardLock } from "@/types";
 
 interface UsePresenceOptions {
   projectId: string;
+  /** The authenticated user's identity. If null, presence is disabled. */
+  user: UserIdentity | null;
 }
 
 interface PresenceState {
-  /** All users on this board */
+  /** All online users on this board (including current user) */
   users: PresenceUser[];
-  /** Map of cardId → users viewing that card */
+  /** Other online users (excluding current user) */
+  otherUsers: PresenceUser[];
+  /** Map of cardId -> users viewing that card */
   cardViewers: Record<string, PresenceUser[]>;
-  /** Map of cardId → lock info (user currently dragging) */
+  /** Map of cardId -> lock info (user currently dragging) */
   cardLocks: Record<string, CardLock>;
-  /** The current user's identity */
-  currentUser: UserIdentity;
+  /** The current user's identity (null if not authenticated) */
+  currentUser: UserIdentity | null;
+  /** Whether presence is active (user is authenticated and connected) */
+  isActive: boolean;
   /** Notify that the current user started viewing a card */
   viewCard: (cardId: string) => void;
   /** Notify that the current user stopped viewing a card */
@@ -33,15 +39,21 @@ interface PresenceState {
   getLockHolder: (cardId: string) => PresenceUser | null;
 }
 
-export function usePresence({ projectId }: UsePresenceOptions): PresenceState {
+const NOOP = () => {};
+
+export function usePresence({ projectId, user }: UsePresenceOptions): PresenceState {
   const [users, setUsers] = useState<PresenceUser[]>([]);
   const [cardViewers, setCardViewers] = useState<Record<string, PresenceUser[]>>({});
   const [cardLocks, setCardLocks] = useState<Record<string, CardLock>>({});
   const socketRef = useRef<Socket | null>(null);
-  const identityRef = useRef<UserIdentity>(getUserIdentity());
+  const userRef = useRef<UserIdentity | null>(user);
+  userRef.current = user;
 
   useEffect(() => {
-    const identity = identityRef.current;
+    // Don't connect if user isn't authenticated
+    if (!user) return;
+
+    const identity = user;
     const socket = io(getSocketUrl());
     socketRef.current = socket;
 
@@ -53,6 +65,7 @@ export function usePresence({ projectId }: UsePresenceOptions): PresenceState {
           id: identity.id,
           name: identity.name,
           color: identity.color,
+          avatarUrl: identity.avatarUrl || null,
         },
       });
     });
@@ -122,64 +135,90 @@ export function usePresence({ projectId }: UsePresenceOptions): PresenceState {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [projectId]);
+  }, [projectId, user?.id]); // reconnect if user changes
 
   const viewCard = useCallback((cardId: string) => {
+    const u = userRef.current;
+    if (!u) return;
     socketRef.current?.emit("presence:view-card", {
       projectId,
       cardId,
-      user: {
-        id: identityRef.current.id,
-        name: identityRef.current.name,
-        color: identityRef.current.color,
-      },
+      user: { id: u.id, name: u.name, color: u.color, avatarUrl: u.avatarUrl || null },
     });
   }, [projectId]);
 
   const unviewCard = useCallback((cardId: string) => {
+    const u = userRef.current;
+    if (!u) return;
     socketRef.current?.emit("presence:unview-card", {
       projectId,
       cardId,
-      userId: identityRef.current.id,
+      userId: u.id,
     });
   }, [projectId]);
 
   const lockCard = useCallback((cardId: string) => {
+    const u = userRef.current;
+    if (!u) return;
     socketRef.current?.emit("presence:lock-card", {
       projectId,
       cardId,
-      user: {
-        id: identityRef.current.id,
-        name: identityRef.current.name,
-        color: identityRef.current.color,
-      },
+      user: { id: u.id, name: u.name, color: u.color, avatarUrl: u.avatarUrl || null },
     });
   }, [projectId]);
 
   const unlockCard = useCallback((cardId: string) => {
+    const u = userRef.current;
+    if (!u) return;
     socketRef.current?.emit("presence:unlock-card", {
       projectId,
       cardId,
-      userId: identityRef.current.id,
+      userId: u.id,
     });
   }, [projectId]);
 
   const isLockedByOther = useCallback((cardId: string): boolean => {
+    const u = userRef.current;
+    if (!u) return false;
     const lock = cardLocks[cardId];
-    return !!lock && lock.userId !== identityRef.current.id;
+    return !!lock && lock.userId !== u.id;
   }, [cardLocks]);
 
   const getLockHolder = useCallback((cardId: string): PresenceUser | null => {
+    const u = userRef.current;
+    if (!u) return null;
     const lock = cardLocks[cardId];
-    if (!lock || lock.userId === identityRef.current.id) return null;
-    return users.find((u) => u.id === lock.userId) || null;
+    if (!lock || lock.userId === u.id) return null;
+    return users.find((usr) => usr.id === lock.userId) || null;
   }, [cardLocks, users]);
+
+  const otherUsers = user ? users.filter((u) => u.id !== user.id) : [];
+
+  // If user is not authenticated, return inactive state with noops
+  if (!user) {
+    return {
+      users: [],
+      otherUsers: [],
+      cardViewers: {},
+      cardLocks: {},
+      currentUser: null,
+      isActive: false,
+      viewCard: NOOP,
+      unviewCard: NOOP,
+      lockCard: NOOP,
+      unlockCard: NOOP,
+      isLockedByOther: () => false,
+      getLockHolder: () => null,
+    };
+  }
 
   return {
     users,
+    otherUsers,
     cardViewers,
     cardLocks,
-    currentUser: identityRef.current,
+    currentUser: user,
+    isActive: true,
     viewCard,
     unviewCard,
     lockCard,

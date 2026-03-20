@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   DragDropContext,
@@ -17,6 +17,8 @@ import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { ProjectFilesPopover } from "@/components/files/ProjectFilesPopover";
 import { useBoard } from "@/hooks/useBoard";
 import { usePresence } from "@/hooks/usePresence";
+import { useAuth } from "@/hooks/useAuth";
+import { getAuthIdentity } from "@/lib/identity";
 import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
 import { GitPushButton } from "./GitPushButton";
@@ -30,7 +32,15 @@ interface BoardProps {
 
 function BoardInner({ projectId }: BoardProps) {
   const board = useBoard(projectId);
-  const presence = usePresence({ projectId });
+  const { user: authUser, isAnonymous } = useAuth();
+
+  // Build identity from authenticated user; null if not signed in
+  const authIdentity = useMemo(
+    () => (authUser && !isAnonymous ? getAuthIdentity(authUser) : null),
+    [authUser, isAnonymous],
+  );
+
+  const presence = usePresence({ projectId, user: authIdentity });
   const searchParams = useSearchParams();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const lastCardRef = useRef<Card | null>(null);
@@ -192,6 +202,7 @@ function BoardInner({ projectId }: BoardProps) {
           { label: "Dashboard", href: "/" },
           { label: board.project.name },
         ]}
+        isOnline={presence.isActive}
         actions={
           <div className="flex items-center gap-3">
             <div className="flex rounded-lg bg-white/5 p-0.5">
@@ -232,7 +243,12 @@ function BoardInner({ projectId }: BoardProps) {
               uploading={uploadingProjectFiles}
             />
             <UsageCounter />
-            <PresenceBar users={presence.users} currentUser={presence.currentUser} />
+            {presence.isActive && (
+              <PresenceBar
+                otherUsers={presence.otherUsers}
+                totalOnline={presence.users.length}
+              />
+            )}
           </div>
         }
       />

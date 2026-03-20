@@ -152,6 +152,7 @@ export interface PresenceUser {
   id: string;
   name: string;
   color: string;
+  avatarUrl?: string | null;
 }
 
 export interface CardLock {

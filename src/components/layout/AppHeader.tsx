@@ -11,9 +11,11 @@ interface Breadcrumb {
 interface AppHeaderProps {
   breadcrumbs: Breadcrumb[];
   actions?: React.ReactNode;
+  /** Whether the current user is online in the presence system */
+  isOnline?: boolean;
 }
 
-export function AppHeader({ breadcrumbs, actions }: AppHeaderProps) {
+export function AppHeader({ breadcrumbs, actions, isOnline }: AppHeaderProps) {
   return (
     <header className="relative z-20 flex items-center justify-between px-8 py-4">
       <div className="flex items-center gap-3">
@@ -43,7 +45,7 @@ export function AppHeader({ breadcrumbs, actions }: AppHeaderProps) {
       </div>
       <div className="flex items-center gap-3">
         {actions}
-        <UserMenu />
+        <UserMenu isOnline={isOnline} />
       </div>
     </header>
   );

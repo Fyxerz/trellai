@@ -14,6 +14,7 @@ interface PresenceUser {
   id: string;
   name: string;
   color: string;
+  avatarUrl?: string | null;
   socketId: string;
 }
 
@@ -51,14 +52,18 @@ function getCardLocks(projectId: string) {
   return cardLocks.get(projectId)!;
 }
 
+function toPresencePayload({ id, name, color, avatarUrl }: PresenceUser) {
+  return { id, name, color, avatarUrl: avatarUrl || null };
+}
+
 function broadcastUsers(io: InstanceType<typeof SocketServer>, projectId: string) {
-  const users = Array.from(getProjectUsers(projectId).values()).map(({ id, name, color }) => ({ id, name, color }));
+  const users = Array.from(getProjectUsers(projectId).values()).map(toPresencePayload);
   io.to(`presence:${projectId}`).emit("presence:users", { users });
 }
 
 function broadcastCardViewers(io: InstanceType<typeof SocketServer>, projectId: string, cardId: string) {
   const viewers = getCardViewers(projectId).get(cardId);
-  const list = viewers ? Array.from(viewers.values()).map(({ id, name, color }) => ({ id, name, color })) : [];
+  const list = viewers ? Array.from(viewers.values()).map(toPresencePayload) : [];
   io.to(`presence:${projectId}`).emit("presence:card-viewers", { cardId, viewers: list });
 }
 
@@ -142,7 +147,7 @@ io.on("connection", (socket) => {
   });
 
   // ─── Presence events ───────────────────────────────────────
-  socket.on("presence:join", (data: { projectId: string; user: { id: string; name: string; color: string } }) => {
+  socket.on("presence:join", (data: { projectId: string; user: { id: string; name: string; color: string; avatarUrl?: string | null } }) => {
     const { projectId, user } = data;
 
     // Track socket → user mapping for disconnect cleanup
@@ -161,7 +166,7 @@ io.on("connection", (socket) => {
     // Send current card viewers and locks to the new user
     const projectViewers = getCardViewers(projectId);
     for (const [cardId, viewers] of projectViewers) {
-      const list = Array.from(viewers.values()).map(({ id, name, color }) => ({ id, name, color }));
+      const list = Array.from(viewers.values()).map(toPresencePayload);
       socket.emit("presence:card-viewers", { cardId, viewers: list });
     }
 
@@ -180,7 +185,7 @@ io.on("connection", (socket) => {
     console.log(`[presence] User left: ${data.userId} → project ${data.projectId}`);
   });
 
-  socket.on("presence:view-card", (data: { projectId: string; cardId: string; user: { id: string; name: string; color: string } }) => {
+  socket.on("presence:view-card", (data: { projectId: string; cardId: string; user: { id: string; name: string; color: string; avatarUrl?: string | null } }) => {
     const { projectId, cardId, user } = data;
     const projectViewers = getCardViewers(projectId);
     if (!projectViewers.has(cardId)) projectViewers.set(cardId, new Map());
@@ -199,7 +204,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("presence:lock-card", (data: { projectId: string; cardId: string; user: { id: string; name: string; color: string } }) => {
+  socket.on("presence:lock-card", (data: { projectId: string; cardId: string; user: { id: string; name: string; color: string; avatarUrl?: string | null } }) => {
     const { projectId, cardId, user } = data;
     const locks = getCardLocks(projectId);
 

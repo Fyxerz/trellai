@@ -27,6 +27,7 @@ export interface UserIdentity {
   id: string;
   name: string;
   color: string;
+  avatarUrl?: string | null;
 }
 
 function generateName(): string {
@@ -86,6 +87,40 @@ export function setUserName(name: string): UserIdentity {
     // ignore
   }
   return identity;
+}
+
+/**
+ * Derive a deterministic color from a user ID or email string.
+ */
+export function colorFromId(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0; // Convert to 32-bit int
+  }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
+
+/**
+ * Build a UserIdentity from an authenticated Supabase user.
+ */
+export function getAuthIdentity(user: {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+}): UserIdentity {
+  const name =
+    (user.user_metadata?.full_name as string) ||
+    (user.user_metadata?.name as string) ||
+    user.email ||
+    "User";
+  const avatarUrl = (user.user_metadata?.avatar_url as string) || null;
+  return {
+    id: user.id,
+    name,
+    color: colorFromId(user.id),
+    avatarUrl,
+  };
 }
 
 /**
