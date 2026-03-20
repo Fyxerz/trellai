@@ -18,7 +18,7 @@ export function ProjectChatWidget({
   onCardCreated,
 }: ProjectChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const {
     messages,
     conversations,
