@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "@/lib/socket-url";
-import type { Card, Project, Team } from "@/types";
+import type { Card, Project, Team, BoardRole } from "@/types";
 
 export interface ProjectSummary {
   project: Project;
@@ -16,9 +16,15 @@ export interface ProjectSummary {
   attentionCards: Card[];
 }
 
+export interface SharedProject {
+  project: Project;
+  role: BoardRole;
+}
+
 export function useDashboard() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [sharedProjects, setSharedProjects] = useState<SharedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<Socket | null>(null);
 
@@ -46,10 +52,23 @@ export function useDashboard() {
     }
   }, []);
 
+  const fetchSharedProjects = useCallback(async () => {
+    try {
+      const res = await fetch("/api/projects/shared");
+      if (res.ok) {
+        const data = await res.json();
+        setSharedProjects(data);
+      }
+    } catch {
+      // Shared projects may not be available
+    }
+  }, []);
+
   useEffect(() => {
     fetchSummaries();
     fetchTeams();
-  }, [fetchSummaries, fetchTeams]);
+    fetchSharedProjects();
+  }, [fetchSummaries, fetchTeams, fetchSharedProjects]);
 
   // Real-time updates via socket
   useEffect(() => {
@@ -180,6 +199,7 @@ export function useDashboard() {
     nonPersonalTeams,
     personalProjects,
     teamProjects,
+    sharedProjects,
     loading,
     attentionCards,
     createProject,

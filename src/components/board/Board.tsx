@@ -23,7 +23,8 @@ import type { Card, Column as ColumnType, FileAttachment } from "@/types";
 import { FileEditorDrawer } from "@/components/editor/FileEditorDrawer";
 import { GitPushButton } from "./GitPushButton";
 import { SearchBar } from "./SearchBar";
-import { Loader2, ArrowLeft, FileEdit } from "lucide-react";
+import { BoardCollaboratorsPanel } from "./BoardCollaboratorsPanel";
+import { Loader2, ArrowLeft, FileEdit, Share2 } from "lucide-react";
 
 const COLUMNS: ColumnType[] = ["features", "planning", "production", "review", "complete"];
 
@@ -50,6 +51,7 @@ function BoardInner({ projectId }: BoardProps) {
   const [uploadingProjectFiles, setUploadingProjectFiles] = useState(false);
   const [boardDragOver, setBoardDragOver] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const cardMatchesSearch = useCallback(
@@ -246,6 +248,16 @@ function BoardInner({ projectId }: BoardProps) {
                 Queue
               </button>
             </div>
+            {!isAnonymous && (
+              <button
+                onClick={() => setShareOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors"
+                title="Share board"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share
+              </button>
+            )}
             <button
               onClick={() => setEditorOpen(true)}
               className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors"
@@ -358,6 +370,12 @@ function BoardInner({ projectId }: BoardProps) {
         projectId={projectId}
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
+      />
+
+      <BoardCollaboratorsPanel
+        projectId={projectId}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
       />
     </div>
   );

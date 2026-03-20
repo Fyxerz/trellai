@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase/server", () => ({
 const mockFindProjectById = vi.fn();
 const mockFindCardById = vi.fn();
 const mockFindByTeamAndUser = vi.fn();
+const mockFindByProjectAndUser = vi.fn();
 
 vi.mock("@/lib/db/repositories", () => ({
   getLocalRepositories: () => ({
@@ -25,6 +26,7 @@ vi.mock("@/lib/db/repositories", () => ({
   }),
   getRepositories: () => ({
     teamMembers: { findByTeamAndUser: mockFindByTeamAndUser },
+    boardCollaborators: { findByProjectAndUser: mockFindByProjectAndUser },
   }),
 }));
 
@@ -35,6 +37,7 @@ describe("Auth helpers", () => {
     mockFindProjectById.mockReset();
     mockFindCardById.mockReset();
     mockFindByTeamAndUser.mockReset();
+    mockFindByProjectAndUser.mockReset();
   });
 
   afterEach(() => {
@@ -330,6 +333,168 @@ describe("Auth helpers", () => {
       const { assertCardAccessForUser } = await import("@/lib/auth");
       const result = await assertCardAccessForUser("card-999", null);
       expect(result).toBe(false);
+    });
+  });
+
+  describe("assertProjectAccess - board collaborator", () => {
+    it("should return true for board collaborator", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: null,
+      });
+      mockFindByProjectAndUser.mockResolvedValue({
+        id: "bc-1",
+        projectId: "proj-1",
+        userId: "user-123",
+        role: "editor",
+      });
+
+      const { assertProjectAccess } = await import("@/lib/auth");
+      const result = await assertProjectAccess("proj-1", "user-123");
+      expect(result).toBe(true);
+    });
+
+    it("should return false when not a board collaborator and not team member", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: null,
+      });
+      mockFindByProjectAndUser.mockResolvedValue(undefined);
+
+      const { assertProjectAccess } = await import("@/lib/auth");
+      const result = await assertProjectAccess("proj-1", "user-123");
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("getProjectRole", () => {
+    it("should return admin for project owner", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "user-123",
+        teamId: null,
+      });
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("admin");
+    });
+
+    it("should return admin for legacy project (null userId)", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: null,
+        teamId: null,
+      });
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("admin");
+    });
+
+    it("should return null for non-existent project", async () => {
+      mockFindProjectById.mockResolvedValue(undefined);
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-999", "user-123");
+      expect(role).toBeNull();
+    });
+
+    it("should return editor for team member role", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: "team-1",
+      });
+      mockFindByTeamAndUser.mockResolvedValue({
+        id: "tm-1",
+        teamId: "team-1",
+        userId: "user-123",
+        role: "member",
+      });
+      mockFindByProjectAndUser.mockResolvedValue(undefined);
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("editor");
+    });
+
+    it("should return admin for team admin", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: "team-1",
+      });
+      mockFindByTeamAndUser.mockResolvedValue({
+        id: "tm-1",
+        teamId: "team-1",
+        userId: "user-123",
+        role: "admin",
+      });
+      mockFindByProjectAndUser.mockResolvedValue(undefined);
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("admin");
+    });
+
+    it("should return board collaborator role when no team access", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: null,
+      });
+      mockFindByProjectAndUser.mockResolvedValue({
+        id: "bc-1",
+        projectId: "proj-1",
+        userId: "user-123",
+        role: "viewer",
+      });
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("viewer");
+    });
+
+    it("should return highest privilege when both team and board access exist", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: "team-1",
+      });
+      // Team member = editor equivalent
+      mockFindByTeamAndUser.mockResolvedValue({
+        id: "tm-1",
+        teamId: "team-1",
+        userId: "user-123",
+        role: "member",
+      });
+      // Board admin = higher privilege
+      mockFindByProjectAndUser.mockResolvedValue({
+        id: "bc-1",
+        projectId: "proj-1",
+        userId: "user-123",
+        role: "admin",
+      });
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBe("admin");
+    });
+
+    it("should return null when no access at all", async () => {
+      mockFindProjectById.mockResolvedValue({
+        id: "proj-1",
+        userId: "other-user",
+        teamId: null,
+      });
+      mockFindByProjectAndUser.mockResolvedValue(undefined);
+
+      const { getProjectRole } = await import("@/lib/auth");
+      const role = await getProjectRole("proj-1", "user-123");
+      expect(role).toBeNull();
     });
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Plus, LayoutDashboard, Loader2 } from "lucide-react";
+import { Plus, LayoutDashboard, Loader2, Share2 } from "lucide-react";
+import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
 
 import { ProjectCard } from "./ProjectCard";
@@ -184,6 +185,44 @@ export function Dashboard() {
               />
             </div>
           ))}
+
+        {/* Shared with me section */}
+        {showTeamFeatures && dashboard.sharedProjects.length > 0 && (
+          <div className="mb-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-white/40" />
+                Shared with me
+              </h2>
+              <span className="text-sm text-white/40">
+                {dashboard.sharedProjects.length} board
+                {dashboard.sharedProjects.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {dashboard.sharedProjects.map(({ project, role }) => (
+                <Link
+                  key={project.id}
+                  href={`/board/${project.id}`}
+                  className="glass-card rounded-2xl p-5 transition-all duration-200 hover:scale-[1.02] hover:bg-white/8 border border-white/5"
+                >
+                  <div className="flex items-start justify-between">
+                    <h3 className="text-base font-semibold text-white/90 truncate">
+                      {project.name}
+                    </h3>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/50 uppercase">
+                      {role}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-white/40">
+                    Shared board
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <CreateProjectDialog
