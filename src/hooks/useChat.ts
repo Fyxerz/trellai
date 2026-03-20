@@ -29,6 +29,26 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     setMessages(enriched);
   }, [cardId]);
 
+  const fetchPendingQuestion = useCallback(async (retries = 0) => {
+    if (!cardId) return;
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pending_question", cardId }),
+      });
+      const data = await res.json();
+      if (data.pendingQuestion) {
+        setPendingQuestion(data.pendingQuestion);
+      } else if (retries < 3) {
+        // Retry after a short delay — question may not be queued in memory yet
+        setTimeout(() => fetchPendingQuestion(retries + 1), 500);
+      }
+    } catch {
+      // Ignore errors — question may not exist
+    }
+  }, [cardId]);
+
   const fetchAgentStatus = useCallback(async () => {
     if (!cardId) return;
     const res = await fetch("/api/agents", {
@@ -42,7 +62,11 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
     if (data.running) {
       setStreaming(true);
     }
-  }, [cardId]);
+    // If awaiting feedback, fetch the pending question (don't set streaming — question card replaces dots)
+    if (data.awaitingFeedback) {
+      fetchPendingQuestion();
+    }
+  }, [cardId, fetchPendingQuestion]);
 
   const fetchStreamingState = useCallback(async () => {
     if (!cardId) return;
@@ -88,23 +112,6 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
       });
     } catch {
       // Ignore errors — streaming state may not exist
-    }
-  }, [cardId]);
-
-  const fetchPendingQuestion = useCallback(async () => {
-    if (!cardId) return;
-    try {
-      const res = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "pending_question", cardId }),
-      });
-      const data = await res.json();
-      if (data.pendingQuestion) {
-        setPendingQuestion(data.pendingQuestion);
-      }
-    } catch {
-      // Ignore errors — question may not exist
     }
   }, [cardId]);
 
@@ -249,8 +256,10 @@ export function useChat(cardId: string | null, onAutoMove?: () => void) {
           // Re-fetch messages from DB to catch any that arrived while popup was closed
           fetchMessages();
         }
-        // If awaiting_feedback, fetch the pending question in case we missed the socket event
+        // If awaiting_feedback, stop the streaming dots and fetch the pending question
+        // The question card will replace the dots once pendingQuestion is set
         if (awaitingFeedback) {
+          setStreaming(false);
           fetchPendingQuestion();
         }
       }

@@ -1066,13 +1066,16 @@ ${nextCard.description ? `Description: ${nextCard.description}` : ""}${planningC
     }
   }
 
-  async getAgentStatus(cardId: string): Promise<{ running: boolean }> {
+  async getAgentStatus(cardId: string): Promise<{ running: boolean; awaitingFeedback: boolean }> {
     const proc = this.processes.get(cardId);
-    if (proc?.isRunning) return { running: true };
+    if (proc?.isRunning) return { running: true, awaitingFeedback: false };
 
     // Fallback: check DB status (process map may be lost on hot-reload)
     const card = await repos.cards.findById(cardId);
-    return { running: card?.agentStatus === "running" };
+    return {
+      running: card?.agentStatus === "running",
+      awaitingFeedback: card?.agentStatus === "awaiting_feedback",
+    };
   }
 
   stopAgent(cardId: string) {
