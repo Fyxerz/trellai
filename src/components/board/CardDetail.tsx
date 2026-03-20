@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { DiffViewer } from "@/components/review/DiffViewer";
-import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2, FlaskConical, CheckCircle2, XCircle, MinusCircle, Snowflake } from "lucide-react";
+import { Trash2, GitBranch, Code2, MessageSquare, Copy, Check, Undo2, FlaskConical, CheckCircle2, XCircle, MinusCircle, Snowflake, Paintbrush } from "lucide-react";
+import { PaintCanvas } from "@/components/paint/PaintCanvas";
 import { Checklist } from "./Checklist";
 import { FileUploadButton } from "@/components/files/FileUploadButton";
 import { FileList } from "@/components/files/FileList";
@@ -136,6 +137,7 @@ export function CardDetail({
   );
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [paintOpen, setPaintOpen] = useState(false);
 
   const {
     cardFiles,
@@ -328,7 +330,17 @@ export function CardDetail({
                 <label className="text-xs font-medium text-white/40 uppercase tracking-wider">
                   Files
                 </label>
-                <FileUploadButton onUpload={uploadCardFiles} uploading={uploading} />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPaintOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-violet-300/80 hover:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 transition-colors"
+                    title="Open sketch pad to draw UI ideas"
+                  >
+                    <Paintbrush className="h-3.5 w-3.5" />
+                    Sketch
+                  </button>
+                  <FileUploadButton onUpload={uploadCardFiles} uploading={uploading} />
+                </div>
               </div>
               <FileList
                 cardFiles={cardFiles}
@@ -458,6 +470,18 @@ export function CardDetail({
             Close
           </button>
         </div>
+        {/* Paint overlay */}
+        {paintOpen && (
+          <div className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col rounded-xl overflow-hidden">
+            <PaintCanvas
+              onSave={async (file: File) => {
+                await uploadCardFiles([file]);
+                setPaintOpen(false);
+              }}
+              onClose={() => setPaintOpen(false)}
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
