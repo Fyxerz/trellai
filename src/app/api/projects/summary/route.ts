@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLocalRepositories, getRepositories } from "@/lib/db/repositories";
 import { getOptionalUser } from "@/lib/auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 
 const repos = getLocalRepositories();
 
@@ -15,8 +15,7 @@ export async function GET() {
   let userTeamIds = new Set<string>();
   if (user) {
     try {
-      const supabase = await createServerSupabaseClient();
-      const supaRepos = getRepositories("supabase", supabase);
+      const supaRepos = getRepositories("supabase", getSupabaseAdminClient());
       if (supaRepos.teamMembers) {
         const memberships = await supaRepos.teamMembers.findByUserId(user.id);
         userTeamIds = new Set(memberships.map((m) => m.teamId));

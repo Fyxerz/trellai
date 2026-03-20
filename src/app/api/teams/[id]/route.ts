@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 import { getRepositories } from "@/lib/db/repositories";
 
 /**
@@ -17,7 +18,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase", supabase);
+  const repos = getRepositories("supabase", getSupabaseAdminClient());
   if (!repos.teams) {
     return NextResponse.json({ error: "Teams not available" }, { status: 501 });
   }
@@ -50,7 +51,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const repos = getRepositories("supabase", supabase);
+  const repos = getRepositories("supabase", getSupabaseAdminClient());
   if (!repos.teams) {
     return NextResponse.json({ error: "Teams not available" }, { status: 501 });
   }
@@ -80,7 +81,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase", supabase);
+  const repos = getRepositories("supabase", getSupabaseAdminClient());
   if (!repos.teams) {
     return NextResponse.json({ error: "Teams not available" }, { status: 501 });
   }

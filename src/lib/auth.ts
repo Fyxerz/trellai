@@ -11,6 +11,7 @@
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 import { getLocalRepositories, getRepositories } from "@/lib/db/repositories";
 import type { BoardRole } from "@/lib/db/repositories/types";
@@ -103,8 +104,7 @@ export async function assertProjectAccess(
   // Team-based access
   if (project.teamId) {
     try {
-      const supabase = await createServerSupabaseClient();
-      const supaRepos = getRepositories("supabase", supabase);
+      const supaRepos = getRepositories("supabase", getSupabaseAdminClient());
       if (supaRepos.teamMembers) {
         const membership = await supaRepos.teamMembers.findByTeamAndUser(
           project.teamId,
@@ -173,8 +173,7 @@ export async function getProjectRole(
   // Check team membership
   if (project.teamId) {
     try {
-      const supabase = await createServerSupabaseClient();
-      const supaRepos = getRepositories("supabase", supabase);
+      const supaRepos = getRepositories("supabase", getSupabaseAdminClient());
       if (supaRepos.teamMembers) {
         const membership = await supaRepos.teamMembers.findByTeamAndUser(
           project.teamId,

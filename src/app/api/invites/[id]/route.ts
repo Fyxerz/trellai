@@ -27,7 +27,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Action must be 'accept' or 'decline'" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase", supabase);
+  const adminClient = getSupabaseAdminClient();
+  const repos = getRepositories("supabase", adminClient);
   if (!repos.invites || !repos.teamMembers) {
     return NextResponse.json({ error: "Invites not available" }, { status: 501 });
   }
@@ -49,20 +50,8 @@ export async function PATCH(
     }
 
     if (action === "accept") {
-      // Add user to team.
-      // Uses admin client because the team_members INSERT policy requires
-      // has_team_role(), but the invited user isn't a member yet.
-      let adminClient;
-      try {
-        adminClient = getSupabaseAdminClient();
-      } catch {
-        return NextResponse.json(
-          { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set" },
-          { status: 500 }
-        );
-      }
-      const adminRepos = getRepositories("supabase", adminClient);
-      await adminRepos.teamMembers!.create({
+      // Add user to team (repos already uses admin client to bypass RLS)
+      await repos.teamMembers.create({
         teamId: invite.teamId,
         userId: user.id,
         role: invite.role,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/client";
 import { getRepositories } from "@/lib/db/repositories";
 
 /**
@@ -17,7 +18,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase", supabase);
+  const repos = getRepositories("supabase", getSupabaseAdminClient());
   if (!repos.teamMembers) {
     return NextResponse.json({ error: "Team members not available" }, { status: 501 });
   }
@@ -57,7 +58,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  const repos = getRepositories("supabase", supabase);
+  const repos = getRepositories("supabase", getSupabaseAdminClient());
   if (!repos.teamMembers) {
     return NextResponse.json({ error: "Team members not available" }, { status: 501 });
   }

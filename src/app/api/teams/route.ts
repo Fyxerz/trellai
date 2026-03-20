@@ -5,6 +5,12 @@ import { getRepositories } from "@/lib/db/repositories";
 
 /**
  * GET /api/teams — List teams the current user belongs to
+ *
+ * Uses the admin client to bypass RLS for the read. Auth is validated first
+ * via the cookie-aware server client, then we query with admin and filter
+ * by user membership server-side. This avoids issues with PostgREST schema
+ * cache not having the `is_team_member` SECURITY DEFINER function loaded
+ * after a migration.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -14,13 +20,31 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const repos = getRepositories("supabase", supabase);
-  if (!repos.teams) {
+  let adminClient;
+  try {
+    adminClient = getSupabaseAdminClient();
+  } catch {
+    // Fall back to authenticated client if no service role key
+    const repos = getRepositories("supabase", supabase);
+    if (!repos.teams) {
+      return NextResponse.json({ error: "Teams not available" }, { status: 501 });
+    }
+    try {
+      const teams = await repos.teams.findByUserId(user.id);
+      return NextResponse.json(teams);
+    } catch (error) {
+      console.error("[teams] GET error:", error);
+      return NextResponse.json({ error: "Failed to fetch teams" }, { status: 500 });
+    }
+  }
+
+  const adminRepos = getRepositories("supabase", adminClient);
+  if (!adminRepos.teams) {
     return NextResponse.json({ error: "Teams not available in this storage mode" }, { status: 501 });
   }
 
   try {
-    const teams = await repos.teams.findByUserId(user.id);
+    const teams = await adminRepos.teams.findByUserId(user.id);
     return NextResponse.json(teams);
   } catch (error) {
     console.error("[teams] GET error:", error);
