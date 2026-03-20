@@ -8,3 +8,5 @@ export { SqliteUserRepository } from "./users";
 export { SqliteTeamRepository } from "./teams";
 export { SqliteTeamMemberRepository } from "./team-members";
 export { SqliteInviteRepository } from "./invites";
+export { SqliteBoardCollaboratorRepository } from "./board-collaborators";
+export { SqliteBoardInviteRepository } from "./board-invites";

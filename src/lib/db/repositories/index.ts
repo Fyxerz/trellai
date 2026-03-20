@@ -16,6 +16,8 @@ import {
   SqliteTeamRepository,
   SqliteTeamMemberRepository,
   SqliteInviteRepository,
+  SqliteBoardCollaboratorRepository,
+  SqliteBoardInviteRepository,
 } from "./sqlite";
 import {
   SupabaseProjectRepository,
@@ -28,6 +30,8 @@ import {
   SupabaseTeamRepository,
   SupabaseTeamMemberRepository,
   SupabaseInviteRepository,
+  SupabaseBoardCollaboratorRepository,
+  SupabaseBoardInviteRepository,
 } from "./supabase";
 
 // ── Singleton repositories ──────────────────────────────────────────────────
@@ -48,6 +52,8 @@ function getSqliteRepositories(): RepositoryContext {
       teams: new SqliteTeamRepository(),
       teamMembers: new SqliteTeamMemberRepository(),
       invites: new SqliteInviteRepository(),
+      boardCollaborators: new SqliteBoardCollaboratorRepository(),
+      boardInvites: new SqliteBoardInviteRepository(),
     };
   }
   return _sqliteRepos;
@@ -76,6 +82,8 @@ function buildSupabaseRepositories(client?: SupabaseClient): RepositoryContext {
     teams: new SupabaseTeamRepository(client),
     teamMembers: new SupabaseTeamMemberRepository(client),
     invites: new SupabaseInviteRepository(client),
+    boardCollaborators: new SupabaseBoardCollaboratorRepository(client),
+    boardInvites: new SupabaseBoardInviteRepository(client),
   };
 }
 
@@ -133,6 +141,8 @@ export type {
   ITeamRepository,
   ITeamMemberRepository,
   IInviteRepository,
+  IBoardCollaboratorRepository,
+  IBoardInviteRepository,
   ProjectRow,
   CardRow,
   ChecklistItemRow,
@@ -143,4 +153,7 @@ export type {
   TeamRow,
   TeamMemberRow,
   InviteRow,
+  BoardCollaboratorRow,
+  BoardInviteRow,
+  BoardRole,
 } from "./types";

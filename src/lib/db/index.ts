@@ -353,3 +353,29 @@ try {
 } catch {
   // Column already exists
 }
+
+// Migrate: create board_collaborators table (board-level access)
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS board_collaborators (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    created_at TEXT NOT NULL,
+    UNIQUE(project_id, user_id)
+  );
+`);
+
+// Migrate: create board_invites table (board-level invites)
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS board_invites (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    status TEXT NOT NULL DEFAULT 'pending',
+    invited_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(project_id, email)
+  );
+`);

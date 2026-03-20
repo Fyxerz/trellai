@@ -8,3 +8,5 @@ export { SupabaseUserRepository } from "./users";
 export { SupabaseTeamRepository } from "./teams";
 export { SupabaseTeamMemberRepository } from "./team-members";
 export { SupabaseInviteRepository } from "./invites";
+export { SupabaseBoardCollaboratorRepository } from "./board-collaborators";
+export { SupabaseBoardInviteRepository } from "./board-invites";

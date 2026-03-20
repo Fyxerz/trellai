@@ -99,6 +99,28 @@ export const invites = sqliteTable("invites", {
   createdAt: text("created_at").notNull(),
 });
 
+export const boardCollaborators = sqliteTable("board_collaborators", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  role: text("role").notNull().default("viewer"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const boardInvites = sqliteTable("board_invites", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("viewer"),
+  status: text("status").notNull().default("pending"),
+  invitedBy: text("invited_by").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 export const chatConversations = sqliteTable("chat_conversations", {
   id: text("id").primaryKey(),
   projectId: text("project_id")

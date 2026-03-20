@@ -117,7 +117,7 @@ END $$;
 -- ── STEP 3: Drop old tables/columns ──────────────────────────────────────────
 
 -- Drop old project_members table (replaced by team_members)
-DROP TABLE IF EXISTS project_members;
+DROP TABLE IF EXISTS project_members CASCADE;
 
 -- We keep owner_id for backward compatibility but it's no longer authoritative.
 -- New queries should use team_id + team_members.
@@ -340,9 +340,9 @@ CREATE POLICY "Users can access files in their team projects"
   );
 
 -- ── Drop old project_members policies ──
-
-DROP POLICY IF EXISTS "Members can view their own memberships" ON project_members;
-DROP POLICY IF EXISTS "Owners can manage members" ON project_members;
+-- (Already dropped by CASCADE on the table above; kept as documentation)
+-- DROP POLICY IF EXISTS "Members can view their own memberships" ON project_members;
+-- DROP POLICY IF EXISTS "Owners can manage members" ON project_members;
 
 -- ── STEP 6: Create indexes ────────────────────────────────────────────────────
 

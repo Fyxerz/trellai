@@ -35,6 +35,7 @@ export interface Project {
 }
 
 export type TeamMemberRole = "owner" | "admin" | "member";
+export type BoardRole = "viewer" | "editor" | "admin";
 export type InviteStatus = "pending" | "accepted" | "declined" | "expired";
 
 export interface Team {
@@ -57,6 +58,24 @@ export interface Invite {
   teamId: string;
   email: string;
   role: TeamMemberRole;
+  status: InviteStatus;
+  invitedBy: string;
+  createdAt: string;
+}
+
+export interface BoardCollaborator {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: BoardRole;
+  createdAt: string;
+}
+
+export interface BoardInvite {
+  id: string;
+  projectId: string;
+  email: string;
+  role: BoardRole;
   status: InviteStatus;
   invitedBy: string;
   createdAt: string;

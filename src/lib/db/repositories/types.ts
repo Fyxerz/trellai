@@ -122,6 +122,28 @@ export interface FileRow {
   createdAt: string;
 }
 
+export type BoardRole = "viewer" | "editor" | "admin";
+
+export interface BoardCollaboratorRow {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: BoardRole;
+  createdAt: string;
+}
+
+export type BoardInviteStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface BoardInviteRow {
+  id: string;
+  projectId: string;
+  email: string;
+  role: BoardRole;
+  status: BoardInviteStatus;
+  invitedBy: string;
+  createdAt: string;
+}
+
 // ── Repository interfaces ───────────────────────────────────────────────────
 
 export interface IProjectRepository {
@@ -232,6 +254,26 @@ export interface IInviteRepository {
   delete(id: string): Promise<void>;
 }
 
+export interface IBoardCollaboratorRepository {
+  findByProjectId(projectId: string): Promise<BoardCollaboratorRow[]>;
+  findByUserId(userId: string): Promise<BoardCollaboratorRow[]>;
+  findByProjectAndUser(projectId: string, userId: string): Promise<BoardCollaboratorRow | undefined>;
+  findById(id: string): Promise<BoardCollaboratorRow | undefined>;
+  create(data: Omit<BoardCollaboratorRow, "id" | "createdAt"> & { id?: string }): Promise<BoardCollaboratorRow>;
+  update(id: string, data: Partial<Pick<BoardCollaboratorRow, "role">>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+export interface IBoardInviteRepository {
+  findById(id: string): Promise<BoardInviteRow | undefined>;
+  findByProjectId(projectId: string): Promise<BoardInviteRow[]>;
+  findByEmail(email: string): Promise<BoardInviteRow[]>;
+  findPendingByEmail(email: string): Promise<BoardInviteRow[]>;
+  create(data: Omit<BoardInviteRow, "id" | "status" | "createdAt"> & { id?: string }): Promise<BoardInviteRow>;
+  update(id: string, data: Partial<Pick<BoardInviteRow, "status" | "role">>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
 // ── Combined repository context ─────────────────────────────────────────────
 
 export interface RepositoryContext {
@@ -245,4 +287,6 @@ export interface RepositoryContext {
   teams?: ITeamRepository;
   teamMembers?: ITeamMemberRepository;
   invites?: IInviteRepository;
+  boardCollaborators?: IBoardCollaboratorRepository;
+  boardInvites?: IBoardInviteRepository;
 }

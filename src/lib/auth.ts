@@ -13,6 +13,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { getLocalRepositories, getRepositories } from "@/lib/db/repositories";
+import type { BoardRole } from "@/lib/db/repositories/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,102 @@ export async function assertProjectAccess(
     }
   }
 
+  // Board-level collaborator access
+  try {
+    const supabase = await createServerSupabaseClient();
+    const supaRepos = getRepositories("supabase", supabase);
+    if (supaRepos.boardCollaborators) {
+      const collab = await supaRepos.boardCollaborators.findByProjectAndUser(
+        projectId,
+        userId
+      );
+      if (collab) return true;
+    }
+  } catch {
+    // Supabase may not be configured — deny access
+  }
+
   return false;
+}
+
+// ── Role resolution ─────────────────────────────────────────────────────────
+
+/** Board role priority (higher index = higher privilege). */
+const BOARD_ROLE_PRIORITY: Record<string, number> = {
+  viewer: 0,
+  editor: 1,
+  admin: 2,
+};
+
+/** Map team roles to equivalent board-level privilege. */
+const TEAM_TO_BOARD_ROLE: Record<string, BoardRole> = {
+  member: "editor",
+  admin: "admin",
+  owner: "admin",
+};
+
+/**
+ * Get the effective board role for a user on a project.
+ *
+ * Resolves the highest privilege across team membership and
+ * direct board collaboration. Returns null if the user has no access.
+ */
+export async function getProjectRole(
+  projectId: string,
+  userId: string
+): Promise<BoardRole | null> {
+  const repos = getLocalRepositories();
+  const project = await repos.projects.findById(projectId);
+  if (!project) return null;
+
+  // Owner or legacy project gets admin
+  if (project.userId === userId || project.userId === null) return "admin";
+
+  let highestRole: BoardRole | null = null;
+
+  // Check team membership
+  if (project.teamId) {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const supaRepos = getRepositories("supabase", supabase);
+      if (supaRepos.teamMembers) {
+        const membership = await supaRepos.teamMembers.findByTeamAndUser(
+          project.teamId,
+          userId
+        );
+        if (membership) {
+          highestRole = TEAM_TO_BOARD_ROLE[membership.role] ?? "editor";
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Check board collaborator role
+  try {
+    const supabase = await createServerSupabaseClient();
+    const supaRepos = getRepositories("supabase", supabase);
+    if (supaRepos.boardCollaborators) {
+      const collab = await supaRepos.boardCollaborators.findByProjectAndUser(
+        projectId,
+        userId
+      );
+      if (collab) {
+        const boardRole = collab.role as BoardRole;
+        if (
+          !highestRole ||
+          (BOARD_ROLE_PRIORITY[boardRole] ?? 0) > (BOARD_ROLE_PRIORITY[highestRole] ?? 0)
+        ) {
+          highestRole = boardRole;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return highestRole;
 }
 
 /**
