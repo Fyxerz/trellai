@@ -27,21 +27,33 @@ interface FileEntry {
 }
 
 function isTextFile(filePath: string): boolean {
+  const basename = path.basename(filePath).toLowerCase();
   const ext = path.extname(filePath).toLowerCase();
+
+  // Always allow dotenv files (.env, .env.local, .env.development, etc.)
+  if (basename === ".env" || basename.startsWith(".env.")) return true;
+
+  // Allow known extensionless dotfiles and names
+  const knownNames = new Set([
+    "makefile", "dockerfile", "procfile", "gemfile", "rakefile",
+    ".gitignore", ".gitattributes", ".editorconfig",
+    ".eslintrc", ".prettierrc", ".babelrc", ".dockerignore",
+    ".npmrc", ".nvmrc", ".node-version", ".tool-versions",
+  ]);
+  if (knownNames.has(basename)) return true;
+
+  // Check by extension
   const textExts = new Set([
-    ".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx",
+    ".txt", ".md", ".mdx", ".json", ".jsonc", ".json5",
+    ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts",
     ".css", ".scss", ".less", ".html", ".htm", ".xml", ".svg",
     ".yml", ".yaml", ".toml", ".ini", ".cfg", ".conf",
-    ".env", ".env.local", ".env.development", ".env.production",
-    ".gitignore", ".gitattributes", ".editorconfig",
-    ".eslintrc", ".prettierrc", ".babelrc",
     ".sh", ".bash", ".zsh", ".fish",
     ".py", ".rb", ".go", ".rs", ".java", ".kt", ".swift",
     ".c", ".cpp", ".h", ".hpp", ".cs",
     ".sql", ".graphql", ".gql",
-    ".dockerfile", ".dockerignore",
-    ".lock", ".log",
-    "",  // files without extension (Makefile, Dockerfile, etc.)
+    ".lock", ".log", ".csv", ".tsv",
+    ".prisma", ".hcl", ".tf",
   ]);
   return textExts.has(ext);
 }
