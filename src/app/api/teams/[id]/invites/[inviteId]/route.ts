@@ -24,7 +24,7 @@ export async function PATCH(
   }
 
   try {
-    const updateData: { status?: string; role?: string } = {};
+    const updateData: Partial<Pick<import("@/lib/db/repositories/types").InviteRow, "status" | "role">> = {};
     if (body.status) updateData.status = body.status;
     if (body.role) updateData.role = body.role;
 
